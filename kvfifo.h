@@ -1,11 +1,13 @@
+#ifndef KVFIFO_H
+#define KVFIFO_H
+
+#include <cstddef>
+#include <iterator>
+#include <utility>
+
 template <typename K, typename V>
 class kvfifo {
-  // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
-  // przenoszący. Złożoność O(1).
-  kvfifo();
-  kvfifo(kvfifo const &);
-  kvfifo(kvfifo &&);
-
+ public:
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
   kvfifo();
@@ -78,4 +80,25 @@ class kvfifo {
   // Iterator służy jedynie do przeglądania kolejki i za jego pomocą nie można
   // modyfikować kolejki, więc zachowuje się jak const_iterator z biblioteki
   // standardowej.
+  class k_iterator {
+   public:
+    using iterator_category = std::bidirectional_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = V;
+    using pointer = V *;
+    using reference = V &;
+
+    reference operator*();
+    pointer operator->();
+
+    k_iterator &operator++();
+    k_iterator operator++(int);
+
+    bool operator==(const kvfifo<K, V>::k_iterator &that);
+    bool operator!=(const kvfifo<K, V>::k_iterator &that);
+  };
+  k_iterator k_begin();
+  k_iterator k_end();
 };
+
+#endif
