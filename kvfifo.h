@@ -5,6 +5,7 @@
 #include <iterator>
 #include <utility>
 
+// TODO: wymagania na typy K, V
 template <typename K, typename V>
 class kvfifo {
  public:
@@ -85,18 +86,19 @@ class kvfifo {
     using iterator_category = std::bidirectional_iterator_tag;
     using difference_type = std::ptrdiff_t;
     using value_type = V;
-    using pointer = V *;
     using reference = V &;
 
-    reference operator*();
-    pointer operator->();
+    const reference operator* () const;
 
-    k_iterator &operator++();
-    k_iterator operator++(int);
+    k_iterator &operator++() const;
+    k_iterator operator++(int) const;
+    k_iterator &operator--() const;
+    k_iterator operator--(int) const;
 
-    bool operator==(const kvfifo<K, V>::k_iterator &that);
-    bool operator!=(const kvfifo<K, V>::k_iterator &that);
+    bool operator==(const kvfifo<K, V>::k_iterator &that) const;
+    bool operator!=(const kvfifo<K, V>::k_iterator &that) const;
   };
+  static_assert(std::bidirectional_iterator<k_iterator>);
   k_iterator k_begin();
   k_iterator k_end();
 };
