@@ -1,0 +1,13 @@
+BasedOnStyle: Google
+
+# Niektóre linie są bardzo długie, niektóre nie, a chcemy żeby było
+# konsekwentnie.
+#AllowShortBlocksOnASingleLine: Never
+#AllowShortIfStatementsOnASingleLine: Never
+#AllowShortLoopsOnASingleLine: false
+#AllowShortFunctionsOnASingleLine: None
+#AlwaysBreakTemplateDeclarations: Yes
+#AlwaysBreakAfterDefinitionReturnType: TopLevel
+
+# Peczar ucina punkty za niekonsekwentne stawianie nawiasów xd
+#InsertBraces: true
