@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <utility>
+#include <vector>
 
 // BIG TODO: exception correctness
 
@@ -39,6 +40,9 @@ class kvfifo {
   K assert_key_exists(const K &k) const {
     if (count(k) == 0) throw std::invalid_argument("key missing");
     return k;
+  }
+  void assert_nonempty() const {
+    if (empty()) throw std::invalid_argument("empty");
   }
 
  public:
@@ -76,20 +80,20 @@ class kvfifo {
   // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
   // Złożoność O(log n).
   void push(K const &k, V const &v) {
-    items.push_back({k, v});
-    items_by_key[k].push_back(std::prev(items.end()));
+    // todo: strong exception guarantee
+    // hmmm a tricky case
+    items.push_back({k, v});                            // may throw
+    items_by_key[k].push_back(std::prev(items.end()));  // may throw
   }
 
   // Metoda pop() usuwa pierwszy element z kolejki. Jeśli kolejka jest pusta, to
   // podnosi wyjątek std::invalid_argument. Złożoność O(log n).
   void pop() {
-    if (empty()) {
-      throw std::invalid_argument("queue is empty");
-    }
+    assert_nonempty();
 
     auto [key, value] = items.front();
     items.pop_front();
-    items_by_key[key].pop_front();
+    items_by_key.at(key).pop_front();
   }
 
   // Metoda pop(k) usuwa pierwszy element o podanym kluczu z kolejki. Jeśli
@@ -98,9 +102,11 @@ class kvfifo {
   void pop(K const &k) {
     assert_key_exists(k);
 
-    items_iterator_t node = items_by_key[k].front();
-    items_by_key.pop_front();
-    items.erase(node);
+    // No exceptions.
+    // TODO: check docs to make sure
+    auto node = items_by_key.at(k).front();  // O(log n)
+    items_by_key.at(k).pop_front();          // O(log n)
+    items.erase(node);                       // O(1)
   }
 
   // Metoda move_to_back przesuwa elementy o kluczu k na koniec kolejki,
@@ -137,28 +143,32 @@ class kvfifo {
   // klucza nie ma w kolejce, to podnosi wyjątek std::invalid_argument.
   // Złożoność O(log n).
   std::pair<K const &, V &> first(K const &k) {
+    assert_nonempty();
     return items_by_key.at(assert_key_exists(k)).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
+    assert_nonempty();
     return items_by_key.at(assert_key_exists(k)).front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
+    assert_nonempty();
     return items_by_key.at(assert_key_exists(k)).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
+    assert_nonempty();
     return items_by_key.at(assert_key_exists(k)).back()->as_pair();
   }
 
   // Metoda size zwraca liczbę elementów w kolejce. Złożoność O(1).
-  size_t size() const { return items.size(); }
+  size_t size() const noexcept { return items.size(); }
 
   // Metoda empty zwraca true, gdy kolejka jest pusta, a false w przeciwnym
   // przypadku. Złożoność O(1).
-  bool empty() const { return items.empty(); }
+  bool empty() const noexcept { return items.empty(); }
 
   // Metoda count zwraca liczbę elementów w kolejce o podanym kluczu.
   // Złożoność O(log n).
-  size_t count(K const &k) const {
+  size_t count(K const &k) const noexcept {
     auto it = items_by_key.find(k);
     if (it == items_by_key.end()) return 0;
     return it->second.size();
@@ -224,8 +234,8 @@ class kvfifo {
     }
   };
   static_assert(std::bidirectional_iterator<k_iterator>);
-  k_iterator k_begin() { return k_iterator(items_by_key.begin()); }
-  k_iterator k_end() { return k_iterator(items_by_key.end()); }
+  k_iterator k_begin() noexcept { return k_iterator(items_by_key.begin()); }
+  k_iterator k_end() noexcept { return k_iterator(items_by_key.end()); }
 
   // TODO: remove when done debugging
   std::ostream &print(std::ostream &o) const {
