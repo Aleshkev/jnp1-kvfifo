@@ -1,6 +1,8 @@
 #ifndef KVFIFO_H
 #define KVFIFO_H
 
+#include "counter.h"
+
 #include <cstddef>
 #include <iostream>
 #include <iterator>
@@ -33,16 +35,32 @@ class kvfifo {
   // elementu unieważnia się tylko gdy ten element jest usuwany.
   using items_t = std::list<entry>;
   using items_iterator_t = items_t::iterator;
-  items_t items;
   using items_by_key_t = std::map<K, std::list<items_iterator_t>>;
-  items_by_key_t items_by_key;
+  items_t &items;
+  items_by_key_t &items_by_key;
+  Counter &ref_counter;
 
   K assert_key_exists(const K &k) const {
     if (count(k) == 0) throw std::invalid_argument("key missing");
     return k;
   }
+
   void assert_nonempty() const {
     if (empty()) throw std::invalid_argument("empty");
+  }
+
+  void copy_if_necessary() {
+    if (ref_counter > 1) {
+      ref_counter--;
+
+      items = std::list(that.items);
+      items_by_key();
+      for (auto walk = items.begin(); walk != items.end(); ++walk) {
+        items_by_key[walk->key].push_back(walk); // I think this may throw
+      }
+
+      ref_counter(1);
+    }
   }
 
  public:
@@ -52,35 +70,42 @@ class kvfifo {
 
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
-  kvfifo() = default;
-  kvfifo(kvfifo const &that) {
-    items = std::list(that.items);
-    for (auto walk = items.begin(); walk != items.end(); ++walk) {
-      items_by_key[walk->key].push_back(walk);
-    }
-  }
-  kvfifo(kvfifo &&that) noexcept {
-    items = std::list(that.items);
-    for (auto walk = items.begin(); walk != items.end(); ++walk) {
-      items_by_key[walk->key].push_back(walk);
-    }
-  }
+  kvfifo() noexcept
+    : items(),
+      items_by_key(),
+      ref_counter(1) {};
+  kvfifo(kvfifo const &that) noexcept
+    : items(that->items),
+      items_by_key(that->items_by_key),
+      ref_counter(that->ref_counter) {
+        ref_counter++;
+      }
+  kvfifo(kvfifo &&that) noexcept
+    : items(that->items),
+      items_by_key(that->items_by_key),
+      ref_counter(that->ref_counter) {
+        ref_counter++;
+      }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
-    items = std::list(that.items);
-    items_by_key.clear();
-    for (auto walk = items.begin(); walk != items.end(); ++walk) {
-      items_by_key[walk->key].push_back(walk);
-    }
+    ref_counter--;
+
+    items = that->items;
+    items_by_key = that->items_by_key;
+    ref_counter = that->ref_counter;
+
+    ref_counter++;
+
     return (*this);
   }
 
   // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
   // Złożoność O(log n).
   void push(K const &k, V const &v) {
-    // todo: strong exception guarantee
+    copy_if_necessary();
+    // TODO: strong exception guarantee
     // hmmm a tricky case
     items.push_back({k, v});                            // may throw
     items_by_key[k].push_back(std::prev(items.end()));  // may throw
@@ -90,6 +115,7 @@ class kvfifo {
   // podnosi wyjątek std::invalid_argument. Złożoność O(log n).
   void pop() {
     assert_nonempty();
+    copy_if_necessary();
 
     auto [key, value] = items.front();
     items.pop_front();
@@ -101,6 +127,7 @@ class kvfifo {
   // Złożoność O(log n).
   void pop(K const &k) {
     assert_key_exists(k);
+    copy_if_necessary();
 
     // No exceptions.
     // TODO: check docs to make sure
@@ -114,6 +141,8 @@ class kvfifo {
   // std::invalid_argument, gdy elementu o podanym kluczu nie ma w kolejce.
   // Złożoność O(m + log n), gdzie m to liczba przesuwanych elementów.
   void move_to_back(K const &k) {
+    copy_if_necessary();
+
     std::list<items_iterator_t> new_values_by_k;
     for (auto node : items_by_key[k]) {
       items.push_back(*node);
@@ -129,11 +158,17 @@ class kvfifo {
   // Dowolna operacja modyfikująca kolejkę może unieważnić zwrócone referencje.
   // Jeśli kolejka jest pusta, to podnosi wyjątek std::invalid_argument.
   // Złożoność O(1).
-  std::pair<K const &, V &> front() { return items.front().as_pair(); }
+  std::pair<K const &, V &> front() {
+    copy_if_necessary();
+    return items.front().as_pair();
+  }
   std::pair<K const &, V const &> front() const {
     return items.front().as_pair();
   }
-  std::pair<K const &, V &> back() { return items.back().as_pair(); }
+  std::pair<K const &, V &> back() {
+    copy_if_necessary();
+    return items.back().as_pair();
+  }
   std::pair<K const &, V const &> back() const {
     return items.back().as_pair();
   }
@@ -144,6 +179,7 @@ class kvfifo {
   // Złożoność O(log n).
   std::pair<K const &, V &> first(K const &k) {
     assert_nonempty();
+    copy_if_necessary();
     return items_by_key.at(assert_key_exists(k)).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
@@ -152,6 +188,7 @@ class kvfifo {
   }
   std::pair<K const &, V &> last(K const &k) {
     assert_nonempty();
+    copy_if_necessary();
     return items_by_key.at(assert_key_exists(k)).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
@@ -175,7 +212,9 @@ class kvfifo {
   }
 
   // Metoda clear usuwa wszystkie elementy z kolejki. Złożoność O(n).
-  void clear() {
+  void clear() noexcept {
+    copy_if_necessary();
+
     items.clear();
     items_by_key.clear();
   }
