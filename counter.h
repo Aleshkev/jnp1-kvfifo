@@ -12,10 +12,12 @@ class Counter {
 
     constexpr Counter &operator++() {
       count++;
+      return *this;
     }
 
     constexpr Counter &operator--() {
       count--;
+      return *this;
     }
 
     constexpr std::strong_ordering operator<=>(uint64_t value) {

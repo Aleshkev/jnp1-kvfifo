@@ -51,15 +51,17 @@ class kvfifo {
 
   void copy_if_necessary() {
     if (ref_counter > 1) {
-      ref_counter--;
+      --ref_counter;
 
-      items = std::list(that.items);
-      items_by_key();
+      items = std::list(items);
+      items_by_key_t new_map;
+      items_by_key = new_map;
       for (auto walk = items.begin(); walk != items.end(); ++walk) {
         items_by_key[walk->key].push_back(walk); // I think this may throw
       }
 
-      ref_counter(1);
+      Counter new_counter(1);
+      ref_counter = new_counter;
     }
   }
 
@@ -75,28 +77,28 @@ class kvfifo {
       items_by_key(),
       ref_counter(1) {};
   kvfifo(kvfifo const &that) noexcept
-    : items(that->items),
-      items_by_key(that->items_by_key),
-      ref_counter(that->ref_counter) {
-        ref_counter++;
+    : items(that.items),
+      items_by_key(that.items_by_key),
+      ref_counter(that.ref_counter) {
+        ++ref_counter;
       }
   kvfifo(kvfifo &&that) noexcept
-    : items(that->items),
-      items_by_key(that->items_by_key),
-      ref_counter(that->ref_counter) {
-        ref_counter++;
+    : items(that.items),
+      items_by_key(that.items_by_key),
+      ref_counter(that.ref_counter) {
+        ++ref_counter;
       }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
-    ref_counter--;
+    --ref_counter;
 
-    items = that->items;
-    items_by_key = that->items_by_key;
-    ref_counter = that->ref_counter;
+    items = that.items;
+    items_by_key = that.items_by_key;
+    ref_counter = that.ref_counter;
 
-    ref_counter++;
+    ++ref_counter;
 
     return (*this);
   }

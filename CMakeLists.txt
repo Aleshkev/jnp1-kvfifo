@@ -8,6 +8,7 @@ set(CMAKE_CXX_FLAGS_DEBUG  "-D_GLIBCXX_DEBUG")
 include_directories(.)
 
 add_executable(jnp1_kvfifo
+        counter.h
         kvfifo.h
         kvfifo.cc
         kvfifo_example.cc
