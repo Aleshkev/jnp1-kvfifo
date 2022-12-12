@@ -1,13 +1,12 @@
 #ifndef KVFIFO_H
 #define KVFIFO_H
 
-#include "counter.h"
-
 #include <cstddef>
 #include <iostream>
 #include <iterator>
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <utility>
 #include <vector>
@@ -34,11 +33,12 @@ class kvfifo {
   // Wykorzystuje to zachowanie std::list polegające na tym, że iterator dla
   // elementu unieważnia się tylko gdy ten element jest usuwany.
   using items_t = std::list<entry>;
+  using items_shared_t = std::shared_ptr<items_t>;
   using items_iterator_t = items_t::iterator;
   using items_by_key_t = std::map<K, std::list<items_iterator_t>>;
-  items_t &items;
-  items_by_key_t &items_by_key;
-  Counter &ref_counter;
+  using items_by_key_shared_t = std::shared_ptr<items_by_key_t>;
+  items_shared_t items;
+  items_by_key_shared_t items_by_key;
 
   K assert_key_exists(const K &k) const {
     if (count(k) == 0) throw std::invalid_argument("key missing");
@@ -50,18 +50,14 @@ class kvfifo {
   }
 
   void copy_if_necessary() {
-    if (ref_counter > 1) {
-      --ref_counter;
+    if (items.unique() && items_by_key.uinque()) {
+      return;
+    }
 
-      items = std::list(items);
-      items_by_key_t new_map;
-      items_by_key = new_map;
-      for (auto walk = items.begin(); walk != items.end(); ++walk) {
-        items_by_key[walk->key].push_back(walk); // I think this may throw
-      }
-
-      Counter new_counter(1);
-      ref_counter = new_counter;
+    items = std::make_shared<items_t>(items);
+    items_by_key = std::make_shared<items_by_key_t>();
+    for (auto walk = items.begin(); walk != items.end(); ++walk) {
+      items_by_key[walk->key].push_back(walk); // I think this may throw
     }
   }
 
@@ -73,32 +69,20 @@ class kvfifo {
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
   kvfifo() noexcept
-    : items(),
-      items_by_key(),
-      ref_counter(1) {};
+    : items(std::make_shared<items_t>()),
+      items_by_key(std::make_shared<items_by_key_t>()) {};
   kvfifo(kvfifo const &that) noexcept
     : items(that.items),
-      items_by_key(that.items_by_key),
-      ref_counter(that.ref_counter) {
-        ++ref_counter;
-      }
+      items_by_key(that.items_by_key) {}
   kvfifo(kvfifo &&that) noexcept
     : items(that.items),
-      items_by_key(that.items_by_key),
-      ref_counter(that.ref_counter) {
-        ++ref_counter;
-      }
+      items_by_key(that.items_by_key) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
-    --ref_counter;
-
     items = that.items;
     items_by_key = that.items_by_key;
-    ref_counter = that.ref_counter;
-
-    ++ref_counter;
 
     return (*this);
   }
@@ -109,8 +93,8 @@ class kvfifo {
     copy_if_necessary();
     // TODO: strong exception guarantee
     // hmmm a tricky case
-    items.push_back({k, v});                            // may throw
-    items_by_key[k].push_back(std::prev(items.end()));  // may throw
+    items->push_back({k, v});                            // may throw
+    items_by_key.get()[k].push_back(std::prev(items.end()));  // may throw
   }
 
   // Metoda pop() usuwa pierwszy element z kolejki. Jeśli kolejka jest pusta, to
