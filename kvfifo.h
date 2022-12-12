@@ -50,14 +50,14 @@ class kvfifo {
   }
 
   void copy_if_necessary() {
-    if (items.unique() && items_by_key.uinque()) {
+    if (items.unique() && items_by_key.unique()) {
       return;
     }
 
-    items = std::make_shared<items_t>(items);
+    items = std::make_shared<items_t>(*items);
     items_by_key = std::make_shared<items_by_key_t>();
-    for (auto walk = items.begin(); walk != items.end(); ++walk) {
-      items_by_key[walk->key].push_back(walk); // I think this may throw
+    for (auto walk = items->begin(); walk != items->end(); ++walk) {
+      items_by_key->at(walk->key).push_back(walk); // I think this may throw
     }
   }
 
@@ -94,7 +94,7 @@ class kvfifo {
     // TODO: strong exception guarantee
     // hmmm a tricky case
     items->push_back({k, v});                            // may throw
-    items_by_key.get()[k].push_back(std::prev(items.end()));  // may throw
+    items_by_key->at(k).push_back(std::prev(items->end()));  // may throw
   }
 
   // Metoda pop() usuwa pierwszy element z kolejki. Jeśli kolejka jest pusta, to
@@ -103,9 +103,9 @@ class kvfifo {
     assert_nonempty();
     copy_if_necessary();
 
-    auto [key, value] = items.front();
-    items.pop_front();
-    items_by_key.at(key).pop_front();
+    auto [key, value] = items->front();
+    items->pop_front();
+    items_by_key->at(key).pop_front();
   }
 
   // Metoda pop(k) usuwa pierwszy element o podanym kluczu z kolejki. Jeśli
@@ -117,9 +117,9 @@ class kvfifo {
 
     // No exceptions.
     // TODO: check docs to make sure
-    auto node = items_by_key.at(k).front();  // O(log n)
-    items_by_key.at(k).pop_front();          // O(log n)
-    items.erase(node);                       // O(1)
+    auto node = items_by_key->at(k).front();  // O(log n)
+    items_by_key->at(k).pop_front();          // O(log n)
+    items->erase(node);                       // O(1)
   }
 
   // Metoda move_to_back przesuwa elementy o kluczu k na koniec kolejki,
@@ -130,12 +130,12 @@ class kvfifo {
     copy_if_necessary();
 
     std::list<items_iterator_t> new_values_by_k;
-    for (auto node : items_by_key[k]) {
-      items.push_back(*node);
-      new_values_by_k.push_back(prev(items.end()));
-      items.erase(node);
+    for (auto node : items_by_key->at(k)) {
+      items->push_back(*node);
+      new_values_by_k.push_back(prev(items->end()));
+      items->erase(node);
     }
-    items_by_key[k] = new_values_by_k;
+    items_by_key->insert({k, new_values_by_k});
   }
 
   // Metody front i back zwracają parę referencji do klucza i wartości
@@ -146,17 +146,17 @@ class kvfifo {
   // Złożoność O(1).
   std::pair<K const &, V &> front() {
     copy_if_necessary();
-    return items.front().as_pair();
+    return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
-    return items.front().as_pair();
+    return items->front().as_pair();
   }
   std::pair<K const &, V &> back() {
     copy_if_necessary();
-    return items.back().as_pair();
+    return items->back().as_pair();
   }
   std::pair<K const &, V const &> back() const {
-    return items.back().as_pair();
+    return items->back().as_pair();
   }
 
   // Metody first i last zwracają odpowiednio pierwszą i ostatnią parę
@@ -166,34 +166,34 @@ class kvfifo {
   std::pair<K const &, V &> first(K const &k) {
     assert_nonempty();
     copy_if_necessary();
-    return items_by_key.at(assert_key_exists(k)).front()->as_pair();
+    return items_by_key->at(assert_key_exists(k)).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
     assert_nonempty();
-    return items_by_key.at(assert_key_exists(k)).front()->as_pair();
+    return items_by_key->at(assert_key_exists(k)).front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
     assert_nonempty();
     copy_if_necessary();
-    return items_by_key.at(assert_key_exists(k)).back()->as_pair();
+    return items_by_key->at(assert_key_exists(k)).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
     assert_nonempty();
-    return items_by_key.at(assert_key_exists(k)).back()->as_pair();
+    return items_by_key->at(assert_key_exists(k)).back()->as_pair();
   }
 
   // Metoda size zwraca liczbę elementów w kolejce. Złożoność O(1).
-  size_t size() const noexcept { return items.size(); }
+  size_t size() const noexcept { return items->size(); }
 
   // Metoda empty zwraca true, gdy kolejka jest pusta, a false w przeciwnym
   // przypadku. Złożoność O(1).
-  bool empty() const noexcept { return items.empty(); }
+  bool empty() const noexcept { return items->empty(); }
 
   // Metoda count zwraca liczbę elementów w kolejce o podanym kluczu.
   // Złożoność O(log n).
   size_t count(K const &k) const noexcept {
-    auto it = items_by_key.find(k);
-    if (it == items_by_key.end()) return 0;
+    auto it = items_by_key->find(k);
+    if (it == items_by_key->end()) return 0;
     return it->second.size();
   }
 
@@ -201,8 +201,8 @@ class kvfifo {
   void clear() noexcept {
     copy_if_necessary();
 
-    items.clear();
-    items_by_key.clear();
+    items->clear();
+    items_by_key->clear();
   }
 
   // TODO: invalidate iterators (to make sure
@@ -259,8 +259,8 @@ class kvfifo {
     }
   };
   static_assert(std::bidirectional_iterator<k_iterator>);
-  k_iterator k_begin() noexcept { return k_iterator(items_by_key.begin()); }
-  k_iterator k_end() noexcept { return k_iterator(items_by_key.end()); }
+  k_iterator k_begin() noexcept { return k_iterator(items_by_key->begin()); }
+  k_iterator k_end() noexcept { return k_iterator(items_by_key->end()); }
 
   // TODO: remove when done debugging
   std::ostream &print(std::ostream &o) const {
