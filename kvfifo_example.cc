@@ -37,7 +37,6 @@ int main() {
   kvf2.move_to_back(1);
   assert(kvf2.size() == 3);
   assert(kvf2.front().second == 2);
-  std::cout << kvf2.first(1).second << std::endl;
   assert(kvf2.first(1).second == 1);
   assert(kvf2.last(1).second == 3);
   assert(kvf2.back().second == 3);

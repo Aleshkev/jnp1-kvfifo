@@ -150,7 +150,7 @@ class kvfifo {
       new_values_by_k.push_back(prev(items->end()));
       items->erase(node);
     }
-    items_by_key->insert({k, new_values_by_k});
+    (*items_by_key)[k] = new_values_by_k;
   }
 
   // Metody front i back zwracają parę referencji do klucza i wartości
@@ -203,7 +203,7 @@ class kvfifo {
   }
   std::pair<K const &, V const &> last(K const &k) const {
     assert_nonempty();
-    
+
     return (*items_by_key)[assert_key_exists(k)].back()->as_pair();
   }
 
