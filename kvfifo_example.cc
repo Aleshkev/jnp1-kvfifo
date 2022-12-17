@@ -36,16 +36,17 @@ int main() {
   kvf2.push(1, 3);
   kvf2.move_to_back(1);
   assert(kvf2.size() == 3);
-  assert(kvf2.front().second == 2 &&
-         kvf2.first(1).second == 1 &&
-         kvf2.last(1).second == 3 &&
-         kvf2.back().second == 3);
+  assert(kvf2.front().second == 2);
+  std::cout << kvf2.first(1).second << std::endl;
+  assert(kvf2.first(1).second == 1);
+  assert(kvf2.last(1).second == 3);
+  assert(kvf2.back().second == 3);
 
   kvfifo<int, int> const kvf4 = kvf2;
-  assert(kvf4.front().second == 2 &&
-         kvf4.first(1).second == 1 &&
-         kvf4.last(1).second == 3 &&
-         kvf4.back().second == 3);
+  assert(kvf4.front().second == 2);
+  assert(kvf4.first(1).second == 1);
+  assert(kvf4.last(1).second == 3);
+  assert(kvf4.back().second == 3);
 
   int i = 1;
   for (auto k_it = kvf1.k_begin(), k_end = kvf1.k_end(); k_it != k_end; ++k_it, ++i)

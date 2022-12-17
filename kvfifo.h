@@ -39,6 +39,7 @@ class kvfifo {
   using items_by_key_shared_t = std::shared_ptr<items_by_key_t>;
   items_shared_t items;
   items_by_key_shared_t items_by_key;
+  bool ref_returned = false;
 
   K assert_key_exists(const K &k) const {
     if (count(k) == 0) throw std::invalid_argument("key missing");
@@ -73,16 +74,30 @@ class kvfifo {
       items_by_key(std::make_shared<items_by_key_t>()) {};
   kvfifo(kvfifo const &that) noexcept
     : items(that.items),
-      items_by_key(that.items_by_key) {}
+      items_by_key(that.items_by_key) {
+        if (that.ref_returned) {
+          // This will copy, since there are at least two holders of the shared
+          // pointer - this one and the one we copied
+          copy_if_necessary();
+        }
+      }
   kvfifo(kvfifo &&that) noexcept
     : items(that.items),
-      items_by_key(that.items_by_key) {}
+      items_by_key(that.items_by_key) {
+        if (that.ref_returned) {
+          copy_if_necessary();
+        }
+      }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
     items = that.items;
     items_by_key = that.items_by_key;
+
+    if (that.ref_returned) {
+      copy_if_necessary();
+    }
 
     return (*this);
   }
@@ -146,6 +161,8 @@ class kvfifo {
   // Złożoność O(1).
   std::pair<K const &, V &> front() {
     copy_if_necessary();
+    ref_returned = true;
+    
     return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
@@ -153,6 +170,8 @@ class kvfifo {
   }
   std::pair<K const &, V &> back() {
     copy_if_necessary();
+    ref_returned = true;
+
     return items->back().as_pair();
   }
   std::pair<K const &, V const &> back() const {
@@ -166,19 +185,25 @@ class kvfifo {
   std::pair<K const &, V &> first(K const &k) {
     assert_nonempty();
     copy_if_necessary();
+    ref_returned = true;
+
     return (*items_by_key)[assert_key_exists(k)].front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
     assert_nonempty();
+
     return (*items_by_key)[assert_key_exists(k)].front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
     assert_nonempty();
     copy_if_necessary();
+    ref_returned = true;
+
     return (*items_by_key)[assert_key_exists(k)].back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
     assert_nonempty();
+    
     return (*items_by_key)[assert_key_exists(k)].back()->as_pair();
   }
 
