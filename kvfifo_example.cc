@@ -60,8 +60,16 @@ int main() {
 
   std::swap(kvf1, kvf2);
   std::vector<kvfifo<int, int>> vec;
-  for (int i = 0; i < 100000; i++)
+  for (int i = 0; i < 100; i++)
     kvf1.push(i, i);
   for (int i = 0; i < 1000000; i++)
     vec.push_back(kvf1);  // Wszystkie obiekty w vec współdzielą dane.
+
+  std::cout << "everything went well" << std::endl;
+  std::cout << "kvf1 = " << kvf1 << std::endl;
+  std::cout << "kvf2 = " << kvf2 << std::endl;
+  std::cout << "kvf3 = " << kvf3 << std::endl;
+  std::cout << "kvf4 = " << kvf4 << std::endl;
+  std::cout << "kvf5 = " << kvf5 << std::endl;
+  std::cout << "kvf6 = " << kvf6 << std::endl;
 }

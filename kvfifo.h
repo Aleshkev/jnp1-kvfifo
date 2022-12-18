@@ -11,9 +11,6 @@
 #include <utility>
 #include <vector>
 
-// BIG TODO: exception correctness
-
-// TODO: wymagania na typy K, V
 template <typename K, typename V>
 class kvfifo {
  private:
@@ -32,43 +29,72 @@ class kvfifo {
   //
   // Wykorzystuje to zachowanie std::list polegające na tym, że iterator dla
   // elementu unieważnia się tylko gdy ten element jest usuwany.
-  using items_t = std::list<entry>;
-  using items_shared_t = std::shared_ptr<items_t>;
-  using items_iterator_t = items_t::iterator;
-  using items_by_key_t = std::map<K, std::list<items_iterator_t>>;
-  using items_by_key_shared_t = std::shared_ptr<items_by_key_t>;
-  items_shared_t items;
-  items_by_key_shared_t items_by_key;
-  bool ref_returned = false;
 
+  // Lista elementów.
+  using items_t = std::list<entry>;
+  using shared_items_t = std::shared_ptr<items_t>;
+  using item_iterator_t = items_t::iterator;
+  // Lista iteratorów do elementów.
+  using item_iterators_t = std::list<item_iterator_t>;
+  // Mapa z klucza na listę iteratorów do elementów.
+  using items_by_key_t = std::map<K, item_iterators_t>;
+  using shared_items_by_key_t = std::shared_ptr<items_by_key_t>;
+
+  // Wszystkie elementy.
+  shared_items_t items;
+  // Referencje do elementów o danym kluczu.
+  shared_items_by_key_t items_by_key;
+  // Prawda jeśli na zewnątrz (bo zwróciliśmy w jakiejś metodzie) istnieje
+  // aktualna non-const referencja.
+  bool external_ref_exists = false;
+
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
+  // kluczem. W szczególności też jeśli nie ma żadnych elementów.
   K assert_key_exists(const K &k) const {
     if (count(k) == 0) throw std::invalid_argument("key missing");
     return k;
   }
 
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
   void assert_nonempty() const {
     if (empty()) throw std::invalid_argument("empty");
   }
 
-  void copy_if_necessary() {
-    ref_returned = false;
+  // Silna gwarancja odporności na wyjątki: w ogólnym przypadku, przed
+  // jakąkolwiek modyfikacją naszych danych, najpierw tworzymy struktury ze
+  // wszystkimi modyfikacjami jakie chcemy wprowadzić. Następnie, kiedy już
+  // wszystko musi się dalej udać, aktualizujemy nasze dane.
+  //
+  // Używamy metod jak splice(), merge(), swap(), które zawsze się udają, bo
+  // przenoszą już zaalokowane elementy. I, co ważne, iteratory nadal działają.
+  // Metody usuwające elementy, jak std::map::erase, std::map::clear, też zawsze
+  // się udają.
 
+  // Robi, że jesteśmy jedynym obiektem z dostępem do naszych dzielonych danych.
+  // Silna gwarancja odporności na wyjątki. Unieważnia wszystkie referencje.
+  // TODO: TO OSTATNIE TO DUŻY PROBLEM O KTÓRYM NIE POMYŚLAŁEM >:CC
+  // funkcje używają detach() na początku, a referencje mają się nie unieważniać
+  // jak funkcja się nie uda
+  void detach() {
     if (items.unique() && items_by_key.unique()) {
       return;
     }
 
-    items = std::make_shared<items_t>(*items);
-    items_by_key = std::make_shared<items_by_key_t>();
-    for (auto walk = items->begin(); walk != items->end(); ++walk) {
-      (*items_by_key)[walk->key].push_back(walk);  // I think this may throw
+    // Zapisujemy co trzeba zrobić. Skopiować wszystkie elementy, i stworzyć
+    // nowe referencje do nich.
+    auto new_items = std::make_shared<items_t>(*items);
+    auto new_items_by_key = std::make_shared<items_by_key_t>();
+    for (auto walk = new_items->begin(); walk != new_items->end(); ++walk) {
+      (*new_items_by_key)[walk->key].push_back(walk);
     }
+
+    // Zawsze się uda.
+    items.swap(new_items);
+    items_by_key.swap(new_items_by_key);
+    external_ref_exists = false;
   }
 
  public:
-  // TODO: use shared memory for these
-  // btw, these objects must be copied or else iterators used to modify things
-  // are all wrong
-
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
   kvfifo() noexcept
@@ -76,28 +102,34 @@ class kvfifo {
         items_by_key(std::make_shared<items_by_key_t>()){};
   kvfifo(kvfifo const &that) noexcept
       : items(that.items), items_by_key(that.items_by_key) {
-    if (that.ref_returned) {
-      // This will copy, since there are at least two holders of the shared
-      // pointer - this one and the one we copied
-      copy_if_necessary();
+    if (that.external_ref_exists) {
+      detach();
     }
   }
   kvfifo(kvfifo &&that) noexcept
       : items(that.items), items_by_key(that.items_by_key) {
-    if (that.ref_returned) {
-      copy_if_necessary();
+    if (that.external_ref_exists) {
+      detach();
     }
   }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
-    items = that.items;
-    items_by_key = that.items_by_key;
+    auto new_items = that.items;
+    auto new_items_by_key = that.items_by_key;
 
-    if (that.ref_returned) {
-      copy_if_necessary();
+    // Żeby ten obiekt się nie zmienił przy błędzie, *ten drugi* obiekt ma się
+    // skopiować jeśli to potrzebne. Jak się nie uda, on się nie zmieni, i my
+    // też się nie zmienimy. Jak się uda, to się uda.
+    if (that.external_ref_exists) {
+      that.detach();
     }
+
+    // Dalej bez wyjątków.
+
+    items = new_items;
+    items_by_key = new_items_by_key;
 
     return (*this);
   }
@@ -105,22 +137,47 @@ class kvfifo {
   // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
   // Złożoność O(log n).
   void push(K const &k, V const &v) {
-    copy_if_necessary();
-    // TODO: strong exception guarantee
-    // hmmm a tricky case
-    items->push_back({k, v});                               // may throw
-    (*items_by_key)[k].push_back(std::prev(items->end()));  // may throw
+    detach();
+
+    // Zapisujemy, co trzeba zrobić.
+    // Trzeba dodać nowy element na koniec items. Trzeba zapisać referencję do
+    // niego w odpowiednim miejscu w items_by_key.
+    items_t new_item = {{k, v}};
+    // Zapisujemy nowy element mapy dla przypadku gdy trzeba stworzyć nowy
+    // element mapy, i nowy element listy dla przypadku gdy już jest w mapie.
+    // TODO: usunąć niepotrzebne tworzenie obiektu, ale po testowaniu xd
+    items_by_key_t new_items_at_key = {{k, {new_item.begin()}}};
+    item_iterators_t new_item_reference = {new_item.begin()};
+
+    // Dalej bez wyjątków.
+
+    items->splice(items->end(), new_item);
+    auto items_at_key = items_by_key->find(k);
+    if (items_at_key == items_by_key->end()) {  // Klucz nie istniał.
+      items_by_key->merge(new_items_at_key);
+    } else {  // Istniał.
+      items_at_key->second.splice(items_at_key->second.end(),
+                                  new_item_reference);
+    }
+
+    external_ref_exists = false;  // Bo modyfikacja unieważnia.
   }
 
   // Metoda pop() usuwa pierwszy element z kolejki. Jeśli kolejka jest pusta, to
   // podnosi wyjątek std::invalid_argument. Złożoność O(log n).
   void pop() {
     assert_nonempty();
-    copy_if_necessary();
+    detach();
+
+    // Dalej bez wyjątków.
 
     auto [key, value] = items->front();
     items->pop_front();
-    (*items_by_key)[key].pop_front();
+    auto &items_at_key = items_by_key->at(key);
+    items_at_key.pop_front();
+    if (items_at_key.empty()) items_by_key->erase(key);
+
+    external_ref_exists = false;  // Bo modyfikacja unieważnia.
   }
 
   // Metoda pop(k) usuwa pierwszy element o podanym kluczu z kolejki. Jeśli
@@ -128,13 +185,17 @@ class kvfifo {
   // Złożoność O(log n).
   void pop(K const &k) {
     assert_key_exists(k);
-    copy_if_necessary();
+    detach();
 
-    // No exceptions.
-    // TODO: check docs to make sure
-    auto node = (*items_by_key)[k].front();  // O(log n)
-    (*items_by_key)[k].pop_front();          // O(log n)
-    items->erase(node);                      // O(1)
+    // Dalej bez wyjątków.
+
+    auto items_at_key = items_by_key->find(k);  // O(log n)
+    auto node = items_at_key->front();
+    items_at_key->pop_front();
+    if (items_at_key->empty()) items_by_key->erase(items_at_key);
+    items->erase(node);
+
+    external_ref_exists = false;  // Bo modyfikacja unieważnia.
   }
 
   // Metoda move_to_back przesuwa elementy o kluczu k na koniec kolejki,
@@ -142,15 +203,30 @@ class kvfifo {
   // std::invalid_argument, gdy elementu o podanym kluczu nie ma w kolejce.
   // Złożoność O(m + log n), gdzie m to liczba przesuwanych elementów.
   void move_to_back(K const &k) {
-    copy_if_necessary();
+    assert_key_exists(k);
+    detach();
 
-    std::list<items_iterator_t> new_values_by_k;
-    for (auto node : (*items_by_key)[k]) {
-      items->push_back(*node);
-      new_values_by_k.push_back(prev(items->end()));
-      items->erase(node);
+    // Zapisujemy, co trzeba zrobić.
+    // Trzeba zamienić wszystkie elementy z kluczem k: usunąć wszystkie z items,
+    // i dodać nowe na koniec. Przez to trzeba zamienić referencje w
+    // items_by_key (zmienią się wszystkie).
+    item_iterators_t new_items_at_key;
+    items_t items_to_push_back;
+    item_iterators_t items_to_erase;
+    auto &items_at_key = items_by_key->at(k);
+    for (const auto &node : items_at_key) {
+      items_to_push_back.push_back(*node);
+      new_items_at_key.push_back(std::prev(items_to_push_back.end()));
+      items_to_erase.push_back(node);
     }
-    (*items_by_key)[k] = new_values_by_k;
+
+    // Dalej bez wyjątków.
+
+    items->splice(items->end(), items_to_push_back);
+    for (const auto &node : items_to_erase) items->erase(node);
+    items_at_key.swap(new_items_at_key);
+
+    external_ref_exists = false;  // Bo modyfikacja unieważnia.
   }
 
   // Metody front i back zwracają parę referencji do klucza i wartości
@@ -160,21 +236,27 @@ class kvfifo {
   // Jeśli kolejka jest pusta, to podnosi wyjątek std::invalid_argument.
   // Złożoność O(1).
   std::pair<K const &, V &> front() {
-    copy_if_necessary();
-    ref_returned = true;
+    assert_nonempty();
+    detach();
+    external_ref_exists = true;
 
     return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
+    assert_nonempty();
+
     return items->front().as_pair();
   }
   std::pair<K const &, V &> back() {
-    copy_if_necessary();
-    ref_returned = true;
+    assert_nonempty();
+    detach();
+    external_ref_exists = true;
 
     return items->back().as_pair();
   }
   std::pair<K const &, V const &> back() const {
+    assert_nonempty();
+
     return items->back().as_pair();
   }
 
@@ -183,28 +265,28 @@ class kvfifo {
   // klucza nie ma w kolejce, to podnosi wyjątek std::invalid_argument.
   // Złożoność O(log n).
   std::pair<K const &, V &> first(K const &k) {
-    assert_nonempty();
-    copy_if_necessary();
-    ref_returned = true;
+    assert_key_exists(k);
+    detach();
+    external_ref_exists = true;
 
-    return (*items_by_key)[assert_key_exists(k)].front()->as_pair();
+    return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
-    assert_nonempty();
+    assert_key_exists(k);
 
-    return (*items_by_key)[assert_key_exists(k)].front()->as_pair();
+    return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
-    assert_nonempty();
-    copy_if_necessary();
-    ref_returned = true;
+    assert_key_exists(k);
+    detach();
+    external_ref_exists = true;
 
-    return (*items_by_key)[assert_key_exists(k)].back()->as_pair();
+    return items_by_key->at(k).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
-    assert_nonempty();
+    assert_key_exists(k);
 
-    return (*items_by_key)[assert_key_exists(k)].back()->as_pair();
+    return items_by_key->at(k).back()->as_pair();
   }
 
   // Metoda size zwraca liczbę elementów w kolejce. Złożoność O(1).
@@ -221,14 +303,14 @@ class kvfifo {
     if (it == items_by_key->end()) {
       return 0;
     }
-
     return it->second.size();
   }
 
   // Metoda clear usuwa wszystkie elementy z kolejki. Złożoność O(n).
   void clear() noexcept {
-    copy_if_necessary();
+    detach();
 
+    // Bez wyjątków.
     items->clear();
     items_by_key->clear();
   }
@@ -249,7 +331,7 @@ class kvfifo {
     keys_iterator_t keys_iterator;
 
    public:
-    k_iterator(keys_iterator_t iterator_) : keys_iterator(iterator_) {}
+    explicit k_iterator(keys_iterator_t iterator_) : keys_iterator(iterator_) {}
     k_iterator() = default;
     k_iterator(const k_iterator &that) : keys_iterator(that.keys_iterator) {}
     // TODO: i'm not sure i fully understand how iterators work
@@ -292,13 +374,14 @@ class kvfifo {
 
   // TODO: remove when done debugging
   std::ostream &print(std::ostream &o) const {
+    o << "[";
     bool first = true;
-    for (auto entry : items) {
-      if (!first) o << ", ";
+    for (auto entry : *items) {
+      if (!first) o << ",  ";
       first = false;
-      o << "(" << entry.key << ": " << entry.value << ")";
+      o << entry.key << ": " << entry.value;
     }
-    return o;
+    return o << "]";
   }
 };
 
