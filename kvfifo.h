@@ -60,7 +60,7 @@ class kvfifo {
     items = std::make_shared<items_t>(*items);
     items_by_key = std::make_shared<items_by_key_t>();
     for (auto walk = items->begin(); walk != items->end(); ++walk) {
-      (*items_by_key)[walk->key].push_back(walk); // I think this may throw
+      (*items_by_key)[walk->key].push_back(walk);  // I think this may throw
     }
   }
 
@@ -72,24 +72,22 @@ class kvfifo {
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
   kvfifo() noexcept
-    : items(std::make_shared<items_t>()),
-      items_by_key(std::make_shared<items_by_key_t>()) {};
+      : items(std::make_shared<items_t>()),
+        items_by_key(std::make_shared<items_by_key_t>()){};
   kvfifo(kvfifo const &that) noexcept
-    : items(that.items),
-      items_by_key(that.items_by_key) {
-        if (that.ref_returned) {
-          // This will copy, since there are at least two holders of the shared
-          // pointer - this one and the one we copied
-          copy_if_necessary();
-        }
-      }
+      : items(that.items), items_by_key(that.items_by_key) {
+    if (that.ref_returned) {
+      // This will copy, since there are at least two holders of the shared
+      // pointer - this one and the one we copied
+      copy_if_necessary();
+    }
+  }
   kvfifo(kvfifo &&that) noexcept
-    : items(that.items),
-      items_by_key(that.items_by_key) {
-        if (that.ref_returned) {
-          copy_if_necessary();
-        }
-      }
+      : items(that.items), items_by_key(that.items_by_key) {
+    if (that.ref_returned) {
+      copy_if_necessary();
+    }
+  }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
@@ -110,7 +108,7 @@ class kvfifo {
     copy_if_necessary();
     // TODO: strong exception guarantee
     // hmmm a tricky case
-    items->push_back({k, v});                            // may throw
+    items->push_back({k, v});                               // may throw
     (*items_by_key)[k].push_back(std::prev(items->end()));  // may throw
   }
 
@@ -136,7 +134,7 @@ class kvfifo {
     // TODO: check docs to make sure
     auto node = (*items_by_key)[k].front();  // O(log n)
     (*items_by_key)[k].pop_front();          // O(log n)
-    items->erase(node);                       // O(1)
+    items->erase(node);                      // O(1)
   }
 
   // Metoda move_to_back przesuwa elementy o kluczu k na koniec kolejki,
@@ -164,7 +162,7 @@ class kvfifo {
   std::pair<K const &, V &> front() {
     copy_if_necessary();
     ref_returned = true;
-    
+
     return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
