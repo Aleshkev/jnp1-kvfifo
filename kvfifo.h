@@ -51,6 +51,8 @@ class kvfifo {
   }
 
   void copy_if_necessary() {
+    ref_returned = false;
+
     if (items.unique() && items_by_key.unique()) {
       return;
     }
