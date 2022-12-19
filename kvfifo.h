@@ -86,16 +86,9 @@ class kvfifo_simple {
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
-  kvfifo &operator=(kvfifo that) {
+  kvfifo_simple &operator=(kvfifo_simple that) {
     auto new_items = that.item;
     auto new_items_by_key = that.items_by_key;
-
-    if (that.external_ref_exists) {
-      tie(new_items, new_items_by_key) = detach();
-    }
-
-    finalize_detach(new_items, new_items_by_key);
-    // Dalej bez wyjątków.
 
     return (*this);
   }
@@ -104,7 +97,7 @@ class kvfifo_simple {
     return items.unique() && items_by_key.unique();
   }
 
-  bool external_ref_exists() const noexcept {
+  bool has_external_refs() const noexcept {
     return external_ref_exists;
   }
 
@@ -191,7 +184,7 @@ class kvfifo_simple {
     item_iterators_t items_at_key_please_swap;
     items_t items_please_push_back;
     item_iterators_t items_please_erase;
-    auto &items_at_key = new_items_by_key->at(k);
+    auto &items_at_key = items_by_key->at(k);
     for (const auto &node : items_at_key) {
       items_please_push_back.push_back(*node);
       items_at_key_please_swap.push_back(
@@ -337,10 +330,10 @@ class kvfifo_simple {
       return old;
     }
 
-    bool operator==(const kvfifo<K, V>::k_iterator &that) const {
+    bool operator==(const kvfifo_simple<K, V>::k_iterator &that) const {
       return keys_iterator == that.keys_iterator;
     }
-    bool operator!=(const kvfifo<K, V>::k_iterator &that) const {
+    bool operator!=(const kvfifo_simple<K, V>::k_iterator &that) const {
       return keys_iterator != that.keys_iterator;
     }
   };
@@ -350,35 +343,27 @@ class kvfifo_simple {
   k_iterator k_end() noexcept { return k_iterator(items_by_key->end()); }
 
   // TODO: remove when done debugging
-  std::ostream &print(std::ostream &o) const {
-    o << "[";
-    bool first = true;
-    for (auto entry : *items) {
-      if (!first) o << ",  ";
-      first = false;
-      o << entry.key << ": " << entry.value;
-    }
-    return o << "]";
-  }
+  // std::ostream &print(std::ostream &o) const {
+  //   o << "[";
+  //   bool first = true;
+  //   for (auto entry : *items) {
+  //     if (!first) o << ",  ";
+  //     first = false;
+  //     o << entry.key << ": " << entry.value;
+  //   }
+  //   return o << "]";
+  // }
 };
 
 // TODO: remove when done debugging
-template <typename K, typename V>
-std::ostream &operator<<(std::ostream &o, const kvfifo_simple<K, V> &q) {
-  return q.print(o);
-}
+// template <typename K, typename V>
+// std::ostream &operator<<(std::ostream &o, const kvfifo<K, V> &q) {
+//   return q.print(o);
+// }
 
 template <typename K, typename V>
 class kvfifo {
  private:
-  struct entry {
-    K key;
-    V value;
-
-    std::pair<K const &, V const &> as_pair() const { return {key, value}; }
-    std::pair<K const &, V &> as_pair() { return {key, value}; }
-  };
-
   std::shared_ptr<kvfifo_simple<K, V>> simple;
 
  public:
@@ -388,14 +373,14 @@ class kvfifo {
       : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
   kvfifo(kvfifo const &that) noexcept
       : simple(that.simple) {
-    if (simple->external_refs_exist()) {
-      simple->copy();
+    if (simple->has_external_refs()) {
+      simple = simple->copy();
     }
   }
   kvfifo(kvfifo &&that) noexcept
-      : items(that.items), items_by_key(that.items_by_key) {
-    if (simple->external_ref_exists()) {
-      simple->copy();
+      : simple(that.simple) {
+    if (simple->has_external_refs()) {
+      simple = simple->copy();
     }
   }
 
@@ -403,8 +388,8 @@ class kvfifo {
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) noexcept {
     simple = 
-      that.simple->external_refs_exist()
-        ? that.imple->copy()
+      that.simple->has_external_refs()
+        ? that.simple->copy()
         : that.simple;
 
     return (*this);
@@ -483,8 +468,8 @@ class kvfifo {
     simple = simple_2;
   }
 
-  k_iterator k_begin() noexcept { return simple->k_begin(); }
-  k_iterator k_end() noexcept { return simple->k_end(); }
+  kvfifo_simple<K, V>::k_iterator k_begin() noexcept { return simple->k_begin(); }
+  kvfifo_simple<K, V>::k_iterator k_end() noexcept { return simple->k_end(); }
 };
 
 #endif
