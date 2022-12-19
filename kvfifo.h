@@ -12,7 +12,7 @@
 #include <vector>
 
 template <typename K, typename V>
-class kvfifo {
+class kvfifo_simple {
  private:
   struct entry {
     K key;
@@ -60,89 +60,34 @@ class kvfifo {
     if (empty()) throw std::invalid_argument("empty");
   }
 
-  // Silna gwarancja odporności na wyjątki: w ogólnym przypadku robimy to:
-  //
-  // 1. używamy detach() do zdobycia struktur, na których możemy wprowadzać
-  // zmiany (których jesteśmy jedynym właścicielem);
-  //
-  // 2. zapisujemy zmiany, które trzeba wprowadzić, nie zmieniając tych
-  // struktur (bo najczęściej to są nieskopiowane dane), ale możemy tworzyć
-  // referencje do obiektów w tych strukturach;
-  //
-  // (moment od którego nie ma być błędów)
-  //
-  // 3. finalize_detach(), zapisujemy struktury jako obecną wersja stanu.
-  // (Jeśli w 2. nic nie robimy to kroki 1.-3. wykonuje simple_detach(),
-  // czyli po prostu kopiuje struktury jeśli nie jesteśmy jedynymi
-  // właścicielami.)
-  //
-  // 4. wprowadzamy zmiany na strukturach; używamy metod jak splice(), merge(),
-  // swap(), które zawsze się udają, bo przenoszą już zaalokowane elementy. I,
-  // co ważne, iteratory nadal działają. Metody usuwające elementy, jak
-  // std::map::erase, std::map::clear, też zawsze się udają.
-
-  // Zwraca dane, których na pewno jesteśmy jedynym właścicielem.
-  std::pair<shared_items_t, shared_items_by_key_t> detach() const {
-    if (items.unique() && items_by_key.unique()) {
-      return {items, items_by_key};
-    }
-
-    auto new_items = std::make_shared<items_t>(*items);
-    auto new_items_by_key = std::make_shared<items_by_key_t>();
-    for (auto walk = new_items->begin(); walk != new_items->end(); ++walk) {
-      (*new_items_by_key)[walk->key].push_back(walk);
-    }
-
-    return {new_items, new_items_by_key};
-  }
-
-  // Zapisuje dane jako dane obiektu. Unieważnia referencje i iteratory jeśli to
-  // nie są te same dane co poprzednio.
-  void finalize_detach(shared_items_t new_items,
-                       shared_items_by_key_t new_items_by_key) noexcept {
-    if (items == new_items && new_items_by_key == items_by_key) {
-      return;
-    }
-
-    items = new_items;
-    items_by_key = new_items_by_key;
-
-    invalidate_refs();
-  }
-
-  // Zwraca dane, których na pewno jesteśmy jedynym właścicielem. Unieważnia
-  // referencje i iteratory jeśli nie byliśmy jedynym właścicielem.
-  void simple_detach() {
-    auto [new_items, new_items_by_key] = detach();
-    finalize_detach(new_items, new_items_by_key);
-  }
-
-  // Unieważnia referencje i iteratory.
-  void invalidate_refs() noexcept { external_ref_exists = false; }
+  kvfifo_simple(
+    std::shared_ptr<items_t> new_items,
+    std::shared_ptr<items_by_key_t> new_items_by_key
+  ) : items(new_items), items_by_key(new_items_by_key) {}
 
  public:
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
-  kvfifo() noexcept
+  kvfifo_simple() noexcept
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()){};
-  kvfifo(kvfifo const &that) noexcept
+  kvfifo_simple(kvfifo_simple const &that) noexcept
       : items(that.items), items_by_key(that.items_by_key) {
     if (that.external_ref_exists) {
-      simple_detach();
+      copy();
     }
   }
-  kvfifo(kvfifo &&that) noexcept
+  kvfifo_simple(kvfifo_simple &&that) noexcept
       : items(that.items), items_by_key(that.items_by_key) {
     if (that.external_ref_exists) {
-      simple_detach();
+      copy();
     }
   }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) {
-    auto new_items = that.items;
+    auto new_items = that.item;
     auto new_items_by_key = that.items_by_key;
 
     if (that.external_ref_exists) {
@@ -155,11 +100,27 @@ class kvfifo {
     return (*this);
   }
 
+  bool is_unique() const noexcept {
+    return items.unique() && items_by_key.unique();
+  }
+
+  bool external_ref_exists() const noexcept {
+    return external_ref_exists;
+  }
+
+  std::shared_ptr<kvfifo_simple> copy() const {
+    auto new_items = std::make_shared<items_t>(*items);
+    auto new_items_by_key = std::make_shared<items_by_key_t>();
+    for (auto walk = new_items->begin(); walk != new_items->end(); ++walk) {
+      (*new_items_by_key)[walk->key].push_back(walk);
+    }
+
+    return std::make_shared<kvfifo_simple>(new_items, new_items_by_key);
+  }
+
   // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
   // Złożoność O(log n).
   void push(K const &k, V const &v) {
-    auto [new_items, new_items_by_key] = detach();
-
     // Trzeba dodać nowy element na koniec items. Trzeba zapisać referencję do
     // niego w odpowiednim miejscu w items_by_key.
     items_t items_please_push_back = {{k, v}};
@@ -171,7 +132,6 @@ class kvfifo {
         items_please_push_back.begin()};
 
     // Dalej bez wyjątków.
-    finalize_detach(new_items, new_items_by_key);
 
     items->splice(items->end(), items_please_push_back);
     auto items_at_key = items_by_key->find(k);
@@ -189,7 +149,7 @@ class kvfifo {
   // podnosi wyjątek std::invalid_argument. Złożoność O(log n).
   void pop() {
     assert_nonempty();
-    simple_detach();
+
     // Dalej bez wyjątków.
 
     auto [key, value] = items->front();
@@ -207,7 +167,6 @@ class kvfifo {
   void pop(K const &k) {
     assert_key_exists(k);
 
-    simple_detach();
     // Dalej bez wyjątków.
 
     auto &items_at_key = items_by_key->at(k);  // O(log n)
@@ -226,8 +185,6 @@ class kvfifo {
   void move_to_back(K const &k) {
     assert_key_exists(k);
 
-    auto [new_items, new_items_by_key] = detach();
-
     // Trzeba zamienić wszystkie elementy z kluczem k: usunąć wszystkie z items,
     // i dodać nowe na koniec. Przez to trzeba zamienić referencje w
     // items_by_key (zmienią się wszystkie).
@@ -242,7 +199,6 @@ class kvfifo {
       items_please_erase.push_back(node);
     }
 
-    finalize_detach(new_items, new_items_by_key);
     // Dalej bez wyjątków.
 
     items->splice(items->end(), items_please_push_back);
@@ -261,8 +217,6 @@ class kvfifo {
   std::pair<K const &, V &> front() {
     assert_nonempty();
 
-    simple_detach();
-
     external_ref_exists = true;
     return items->front().as_pair();
   }
@@ -273,8 +227,6 @@ class kvfifo {
   }
   std::pair<K const &, V &> back() {
     assert_nonempty();
-
-    simple_detach();
 
     external_ref_exists = true;
     return items->back().as_pair();
@@ -292,8 +244,6 @@ class kvfifo {
   std::pair<K const &, V &> first(K const &k) {
     assert_key_exists(k);
 
-    simple_detach();
-
     external_ref_exists = true;
     return items_by_key->at(k).front()->as_pair();
   }
@@ -304,8 +254,6 @@ class kvfifo {
   }
   std::pair<K const &, V &> last(K const &k) {
     assert_key_exists(k);
-
-    simple_detach();
 
     external_ref_exists = true;
     return items_by_key->at(k).back()->as_pair();
@@ -337,8 +285,6 @@ class kvfifo {
   // Metoda clear usuwa wszystkie elementy z kolejki. Złożoność O(n).
   void clear() noexcept {
     if (empty()) return;
-
-    simple_detach();
 
     // Bez wyjątków.
     items->clear();
@@ -398,6 +344,7 @@ class kvfifo {
       return keys_iterator != that.keys_iterator;
     }
   };
+
   static_assert(std::bidirectional_iterator<k_iterator>);
   k_iterator k_begin() noexcept { return k_iterator(items_by_key->begin()); }
   k_iterator k_end() noexcept { return k_iterator(items_by_key->end()); }
@@ -417,8 +364,127 @@ class kvfifo {
 
 // TODO: remove when done debugging
 template <typename K, typename V>
-std::ostream &operator<<(std::ostream &o, const kvfifo<K, V> &q) {
+std::ostream &operator<<(std::ostream &o, const kvfifo_simple<K, V> &q) {
   return q.print(o);
 }
+
+template <typename K, typename V>
+class kvfifo {
+ private:
+  struct entry {
+    K key;
+    V value;
+
+    std::pair<K const &, V const &> as_pair() const { return {key, value}; }
+    std::pair<K const &, V &> as_pair() { return {key, value}; }
+  };
+
+  std::shared_ptr<kvfifo_simple<K, V>> simple;
+
+ public:
+  // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
+  // przenoszący. Złożoność O(1).
+  kvfifo() noexcept
+      : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
+  kvfifo(kvfifo const &that) noexcept
+      : simple(that.simple) {
+    if (simple->external_refs_exist()) {
+      simple->copy();
+    }
+  }
+  kvfifo(kvfifo &&that) noexcept
+      : items(that.items), items_by_key(that.items_by_key) {
+    if (simple->external_ref_exists()) {
+      simple->copy();
+    }
+  }
+
+  // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
+  // plus czas niszczenia nadpisywanego obiektu.
+  kvfifo &operator=(kvfifo that) noexcept {
+    simple = 
+      that.simple->external_refs_exist()
+        ? that.imple->copy()
+        : that.simple;
+
+    return (*this);
+  }
+
+  void push(K const &k, V const &v) {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple_2->push(k, v);
+    simple = simple_2;
+  }
+
+  void pop() {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple_2->pop();
+    simple = simple_2;
+  }
+
+  void pop(K const &k) {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple_2->pop(k);
+    simple = simple_2;
+  }
+
+  void move_to_back(K const &k) {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple_2->move_to_back(k);
+    simple = simple_2;
+  }
+
+  std::pair<K const &, V &> front() {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple = simple_2;
+    
+    return simple_2->front();
+  }
+  std::pair<K const &, V const &> front() const {
+    return simple->front();
+  }
+  std::pair<K const &, V &> back() {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple = simple_2;
+    
+    return simple_2->back();
+  }
+  std::pair<K const &, V const &> back() const {
+    return simple->back();
+  }
+  std::pair<K const &, V &> first(K const &k) {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple = simple_2;
+    
+    return simple_2->first(k);
+  }
+  std::pair<K const &, V const &> first(K const &k) const {
+    return simple->first(k);
+  }
+  std::pair<K const &, V &> last(K const &k) {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple = simple_2;
+    
+    return simple_2->last(k);
+  }
+  std::pair<K const &, V const &> last(K const &k) const {
+    return simple->last(k);
+  }
+
+  size_t size() const noexcept { return simple->size(); }
+
+  bool empty() const noexcept { return simple->empty(); }
+
+  size_t count(K const &k) const noexcept { return simple->count(k); }
+
+  void clear() noexcept {
+    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    simple_2->clear();
+    simple = simple_2;
+  }
+
+  k_iterator k_begin() noexcept { return simple->k_begin(); }
+  k_iterator k_end() noexcept { return simple->k_end(); }
+};
 
 #endif
