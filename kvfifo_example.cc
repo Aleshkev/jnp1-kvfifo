@@ -367,6 +367,35 @@ void kwasowTests2() {
   assert(originalObject.size() == 4);
 
   // Other tests that check if object are not copied if not necessary
+  kvfifo<int, int> kvf;
+  kvf.push(1, 1);
+  kvf.push(2, 2);
+  kvf.push(3, 3);
+  kvf.push(4, 4);
+  kvfifo<int, int> const &kvf1 = kvf;
+  auto kvf2(kvf1);
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.front().second;
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.back().second;
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.first(2).second;
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.last(2).second;
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.size();
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.empty();
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
+
+  kvf1.count(1);
+  assert(kvf.k_begin() == kvf2.k_begin() && kvf.k_end() == kvf2.k_end());
 }
 
 // Exceptions
