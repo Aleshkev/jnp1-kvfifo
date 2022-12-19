@@ -60,11 +60,6 @@ class kvfifo_simple {
     if (empty()) throw std::invalid_argument("empty");
   }
 
-  kvfifo_simple(
-    std::shared_ptr<items_t> new_items,
-    std::shared_ptr<items_by_key_t> new_items_by_key
-  ) : items(new_items), items_by_key(new_items_by_key) {}
-
  public:
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
@@ -83,6 +78,10 @@ class kvfifo_simple {
       copy();
     }
   }
+  kvfifo_simple(
+    std::shared_ptr<items_t> new_items,
+    std::shared_ptr<items_by_key_t> new_items_by_key
+  ) : items(new_items), items_by_key(new_items_by_key) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
