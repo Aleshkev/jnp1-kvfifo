@@ -32,6 +32,7 @@ class kvfifo_simple {
 
   // Lista elementów.
   using items_t = std::list<entry>;
+  // TODO: Nie wiem, czy potrzebujemy tutaj shared pointerów w ogóle
   using shared_items_t = std::shared_ptr<items_t>;
   using item_iterator_t = items_t::iterator;
   // Lista iteratorów do elementów.
