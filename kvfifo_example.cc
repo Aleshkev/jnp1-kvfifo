@@ -491,6 +491,18 @@ void kwasowTests3() {
     exception11 = true;
   }
   assert(exception11);
+
+  try {
+    kvf1.k_begin();
+  } catch (...) {
+    assert(false);
+  }
+
+  try {
+    kvf1.k_end();
+  } catch (...) {
+    assert(false);
+  }
 }
 
 // Exception safety
@@ -500,7 +512,47 @@ void kwasowTests4() {
 
 // Iterator tests
 void kwasowTests5() {
+  kvfifo<int, int> kvf1;
+  kvf1.push(1, 1);
+  kvf1.push(2, 1);
+  kvf1.push(3, 1);
+  kvf1.push(4, 1);
+  kvf1.push(1, 2);
+  kvf1.push(2, 2);
+  kvf1.push(3, 2);
+  kvf1.push(4, 2);
 
+  int i = 1;;
+  for (auto walk = kvf1.k_begin(); walk != kvf1.k_end(); ++walk) {
+    assert(*walk == i);
+    i++;
+  }
+  assert(i == 5);
+
+  i = 1;
+  for (auto walk = kvf1.k_begin(); walk != kvf1.k_end(); walk++) {
+    assert(*walk == i);
+    i++;
+  }
+  assert(i == 5);
+
+  i = 4;
+  auto walk = kvf1.k_end();
+  do {
+    --walk;
+    assert(*walk == i);
+    i--;
+  } while (walk != kvf1.k_begin());
+  assert(i == 0);
+
+  i = 4;
+  walk = kvf1.k_end();
+  do {
+    walk--;
+    assert(*walk == i);
+    i--;
+  } while (walk != kvf1.k_begin());
+  assert(i == 0);
 }
 
 auto f(kvfifo<int, int> q) {
