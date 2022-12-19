@@ -92,10 +92,6 @@ class kvfifo_simple {
     return (*this);
   }
 
-  bool is_unique() const noexcept {
-    return items.unique() && items_by_key.unique();
-  }
-
   bool has_external_refs() const noexcept {
     return external_ref_exists;
   }
@@ -395,31 +391,31 @@ class kvfifo {
   }
 
   void push(K const &k, V const &v) {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple_2->push(k, v);
     simple = simple_2;
   }
 
   void pop() {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple_2->pop();
     simple = simple_2;
   }
 
   void pop(K const &k) {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple_2->pop(k);
     simple = simple_2;
   }
 
   void move_to_back(K const &k) {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple_2->move_to_back(k);
     simple = simple_2;
   }
 
   std::pair<K const &, V &> front() {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
     
     return simple_2->front();
@@ -428,7 +424,7 @@ class kvfifo {
     return simple->front();
   }
   std::pair<K const &, V &> back() {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
     
     return simple_2->back();
@@ -437,7 +433,7 @@ class kvfifo {
     return simple->back();
   }
   std::pair<K const &, V &> first(K const &k) {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
     
     return simple_2->first(k);
@@ -446,7 +442,7 @@ class kvfifo {
     return simple->first(k);
   }
   std::pair<K const &, V &> last(K const &k) {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
     
     return simple_2->last(k);
@@ -462,11 +458,12 @@ class kvfifo {
   size_t count(K const &k) const noexcept { return simple->count(k); }
 
   void clear() noexcept {
-    auto simple_2 = (simple->is_unique() ? simple : simple->copy());
+    auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple_2->clear();
     simple = simple_2;
   }
 
+  // TODO: This probably can't be defined like this
   kvfifo_simple<K, V>::k_iterator k_begin() noexcept { return simple->k_begin(); }
   kvfifo_simple<K, V>::k_iterator k_end() noexcept { return simple->k_end(); }
 };
