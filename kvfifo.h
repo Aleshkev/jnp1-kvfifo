@@ -316,12 +316,12 @@ class kvfifo_simple {
       return old;
     }
     k_iterator &operator--() {
-      ++keys_iterator;
+      --keys_iterator;
       return *this;
     }
     k_iterator operator--(int) {
       auto old = *this;
-      ++(*this);
+      --(*this);
       return old;
     }
 
