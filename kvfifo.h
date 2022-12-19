@@ -66,6 +66,9 @@ class kvfifo_simple {
   kvfifo_simple() noexcept
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()) {}
+  kvfifo_simple(kvfifo_simple &&that)
+    : items(std::move(that.items)),
+      items_by_key(std::move(that.items_by_key)) {}
   kvfifo_simple(
     std::shared_ptr<items_t> new_items,
     std::shared_ptr<items_by_key_t> new_items_by_key
@@ -359,9 +362,7 @@ class kvfifo {
         ? that.simple->copy()
         : that.simple) {}
   kvfifo(kvfifo &&that) noexcept
-      : simple(that.simple) {
-        that.simple = nullptr;
-      }
+      : simple(std::move(that.simple)) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
