@@ -367,17 +367,13 @@ class kvfifo {
   kvfifo() noexcept
       : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
   kvfifo(kvfifo const &that) noexcept
-      : simple(that.simple) {
-    if (simple->has_external_refs()) {
-      simple = simple->copy();
-    }
-  }
+      : simple(that.simple->has_external_refs()
+        ? that.simple->copy()
+        : that.simple) {}
   kvfifo(kvfifo &&that) noexcept
-      : simple(that.simple) {
-    if (simple->has_external_refs()) {
-      simple = simple->copy();
-    }
-  }
+      : simple(that.simple->has_external_refs()
+        ? that.simple->copy()
+        : that.simple) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
