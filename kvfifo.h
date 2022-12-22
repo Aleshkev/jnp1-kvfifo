@@ -68,12 +68,12 @@ class kvfifo_simple {
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()) {}
   kvfifo_simple(kvfifo_simple &&that)
-    : items(std::move(that.items)),
-      items_by_key(std::move(that.items_by_key)) {}
-  kvfifo_simple(
-    std::shared_ptr<items_t> new_items,
-    std::shared_ptr<items_by_key_t> new_items_by_key
-  ) : items(std::move(new_items)), items_by_key(std::move(new_items_by_key)) {}
+      : items(std::move(that.items)),
+        items_by_key(std::move(that.items_by_key)) {}
+  kvfifo_simple(std::shared_ptr<items_t> new_items,
+                std::shared_ptr<items_by_key_t> new_items_by_key)
+      : items(std::move(new_items)),
+        items_by_key(std::move(new_items_by_key)) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
@@ -84,9 +84,7 @@ class kvfifo_simple {
     return (*this);
   }
 
-  bool has_external_refs() const noexcept {
-    return external_ref_exists;
-  }
+  bool has_external_refs() const noexcept { return external_ref_exists; }
 
   std::shared_ptr<kvfifo_simple> copy() const {
     auto new_items = std::make_shared<items_t>(*items);
@@ -329,9 +327,7 @@ class kvfifo_simple {
   k_iterator k_begin() const noexcept {
     return k_iterator(items_by_key->begin());
   }
-  k_iterator k_end() const noexcept {
-    return k_iterator(items_by_key->end());
-  }
+  k_iterator k_end() const noexcept { return k_iterator(items_by_key->end()); }
 };
 
 template <typename K, typename V>
@@ -342,22 +338,17 @@ class kvfifo {
  public:
   // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
   // przenoszący. Złożoność O(1).
-  kvfifo() noexcept
-      : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
+  kvfifo() noexcept : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
   kvfifo(kvfifo const &that) noexcept
-      : simple(that.simple->has_external_refs()
-        ? that.simple->copy()
-        : that.simple) {}
-  kvfifo(kvfifo &&that) noexcept
-      : simple(std::move(that.simple)) {}
+      : simple(that.simple->has_external_refs() ? that.simple->copy()
+                                                : that.simple) {}
+  kvfifo(kvfifo &&that) noexcept : simple(std::move(that.simple)) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) noexcept {
-    simple = 
-      that.simple->has_external_refs()
-        ? that.simple->copy()
-        : that.simple;
+    simple =
+        that.simple->has_external_refs() ? that.simple->copy() : that.simple;
 
     return (*this);
   }
@@ -389,25 +380,21 @@ class kvfifo {
   std::pair<K const &, V &> front() {
     auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
-    
+
     return simple_2->front();
   }
-  std::pair<K const &, V const &> front() const {
-    return simple->front();
-  }
+  std::pair<K const &, V const &> front() const { return simple->front(); }
   std::pair<K const &, V &> back() {
     auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
-    
+
     return simple_2->back();
   }
-  std::pair<K const &, V const &> back() const {
-    return simple->back();
-  }
+  std::pair<K const &, V const &> back() const { return simple->back(); }
   std::pair<K const &, V &> first(K const &k) {
     auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
-    
+
     return simple_2->first(k);
   }
   std::pair<K const &, V const &> first(K const &k) const {
@@ -416,7 +403,7 @@ class kvfifo {
   std::pair<K const &, V &> last(K const &k) {
     auto simple_2 = (simple.unique() ? simple : simple->copy());
     simple = simple_2;
-    
+
     return simple_2->last(k);
   }
   std::pair<K const &, V const &> last(K const &k) const {
