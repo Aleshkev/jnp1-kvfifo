@@ -27,6 +27,7 @@ void kwasowMain() {
   kwasowTests4();
   std::cout << "Passed kwasowTests4" << std::endl;
   kwasowTests5();
+  std::cout << "Passed kwasowTests5" << std::endl;
 }
 
 // Basic operations

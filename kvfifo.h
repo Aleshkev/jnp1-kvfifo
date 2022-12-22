@@ -32,7 +32,6 @@ class kvfifo_simple {
 
   // Lista elementów.
   using items_t = std::list<entry>;
-  // TODO: Nie wiem, czy potrzebujemy tutaj shared pointerów w ogóle
   using shared_items_t = std::shared_ptr<items_t>;
   using item_iterator_t = items_t::iterator;
   // Lista iteratorów do elementów.
@@ -62,14 +61,10 @@ class kvfifo_simple {
   }
 
  public:
-  // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
-  // przenoszący. Złożoność O(1).
   kvfifo_simple() noexcept
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()) {}
 
-  // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
-  // plus czas niszczenia nadpisywanego obiektu.
   kvfifo_simple &operator=(kvfifo_simple that) {
     auto new_items = that.item;
     auto new_items_by_key = that.items_by_key;
@@ -94,8 +89,6 @@ class kvfifo_simple {
     return copy;
   }
 
-  // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
-  // Złożoność O(log n).
   void push(K const &k, V const &v) {
     // Trzeba dodać nowy element na koniec items. Trzeba zapisać referencję do
     // niego w odpowiednim miejscu w items_by_key.
@@ -111,18 +104,19 @@ class kvfifo_simple {
 
     items->splice(items->end(), items_please_push_back);
     auto items_at_key = items_by_key->find(k);
-    if (items_at_key == items_by_key->end()) {  // Klucz nie istniał.
+    if (items_at_key == items_by_key->end()) {
+      // Klucz nie istniał.
       items_by_key->merge(items_by_key_please_insert_maybe);
-    } else {  // Istniał.
+    } else {
+      // Istniał.
       items_at_key->second.splice(items_at_key->second.end(),
                                   item_at_key_please_push_back_maybe);
     }
 
-    external_ref_exists = false;  // Bo modyfikacja unieważnia.
+    // Bo modyfikacja unieważnia.
+    external_ref_exists = false;
   }
 
-  // Metoda pop() usuwa pierwszy element z kolejki. Jeśli kolejka jest pusta, to
-  // podnosi wyjątek std::invalid_argument. Złożoność O(log n).
   void pop() {
     assert_nonempty();
 
@@ -134,30 +128,25 @@ class kvfifo_simple {
     items_at_key.pop_front();
     if (items_at_key.empty()) items_by_key->erase(key);
 
-    external_ref_exists = false;  // Bo modyfikacja unieważnia.
+    // Bo modyfikacja unieważnia.
+    external_ref_exists = false;
   }
 
-  // Metoda pop(k) usuwa pierwszy element o podanym kluczu z kolejki. Jeśli
-  // podanego klucza nie ma w kolejce, to podnosi wyjątek std::invalid_argument.
-  // Złożoność O(log n).
   void pop(K const &k) {
     assert_key_exists(k);
 
     // Dalej bez wyjątków.
 
-    auto &items_at_key = items_by_key->at(k);  // O(log n)
+    auto &items_at_key = items_by_key->at(k);
     const auto &node = items_at_key.front();
     items_at_key.pop_front();
-    if (items_at_key.empty()) items_by_key->erase(k);  // O(log n)
-    items->erase(node);                                // O(1)
+    if (items_at_key.empty()) items_by_key->erase(k);
+    items->erase(node);
 
-    external_ref_exists = false;  // Bo modyfikacja unieważnia.
+    // Bo modyfikacja unieważnia.
+    external_ref_exists = false;
   }
 
-  // Metoda move_to_back przesuwa elementy o kluczu k na koniec kolejki,
-  // zachowując ich kolejność względem siebie. Zgłasza wyjątek
-  // std::invalid_argument, gdy elementu o podanym kluczu nie ma w kolejce.
-  // Złożoność O(m + log n), gdzie m to liczba przesuwanych elementów.
   void move_to_back(K const &k) {
     assert_key_exists(k);
 
@@ -181,15 +170,10 @@ class kvfifo_simple {
     for (const auto &node : items_please_erase) items->erase(node);
     items_at_key.swap(items_at_key_please_swap);
 
-    external_ref_exists = false;  // Bo modyfikacja unieważnia.
+    // Bo modyfikacja unieważnia.
+    external_ref_exists = false;
   }
 
-  // Metody front i back zwracają parę referencji do klucza i wartości
-  // znajdującej się odpowiednio na początku i końcu kolejki. W wersji nie-const
-  // zwrócona para powinna umożliwiać modyfikowanie wartości, ale nie klucza.
-  // Dowolna operacja modyfikująca kolejkę może unieważnić zwrócone referencje.
-  // Jeśli kolejka jest pusta, to podnosi wyjątek std::invalid_argument.
-  // Złożoność O(1).
   std::pair<K const &, V &> front() {
     assert_nonempty();
 
@@ -213,10 +197,6 @@ class kvfifo_simple {
     return items->back().as_pair();
   }
 
-  // Metody first i last zwracają odpowiednio pierwszą i ostatnią parę
-  // klucz-wartość o danym kluczu, podobnie jak front i back. Jeśli podanego
-  // klucza nie ma w kolejce, to podnosi wyjątek std::invalid_argument.
-  // Złożoność O(log n).
   std::pair<K const &, V &> first(K const &k) {
     assert_key_exists(k);
 
@@ -240,15 +220,10 @@ class kvfifo_simple {
     return items_by_key->at(k).back()->as_pair();
   }
 
-  // Metoda size zwraca liczbę elementów w kolejce. Złożoność O(1).
   size_t size() const noexcept { return items->size(); }
 
-  // Metoda empty zwraca true, gdy kolejka jest pusta, a false w przeciwnym
-  // przypadku. Złożoność O(1).
   bool empty() const noexcept { return items->empty(); }
 
-  // Metoda count zwraca liczbę elementów w kolejce o podanym kluczu.
-  // Złożoność O(log n).
   size_t count(K const &k) const noexcept {
     // Bez wyjątków.
     auto it = items_by_key->find(k);
@@ -258,7 +233,6 @@ class kvfifo_simple {
     return it->second.size();
   }
 
-  // Metoda clear usuwa wszystkie elementy z kolejki. Złożoność O(n).
   void clear() noexcept {
     if (empty()) return;
 
@@ -268,15 +242,6 @@ class kvfifo_simple {
   }
 
   // TODO: invalidate iterators (to make sure
-  // Iterator k_iterator oraz metody k_begin i k_end, pozwalające przeglądać
-  // zbiór kluczy w rosnącej kolejności wartości. Iteratory mogą być
-  // unieważnione przez dowolną zakończoną powodzeniem operację modyfikującą
-  // kolejkę oraz operacje front, back, first i last w wersjach bez const.
-  // Iterator musi spełniać koncept std::bidirectional_iterator. Wszelkie
-  // operacje w czasie O(log n). Przeglądanie całej kolejki w czasie O(n).
-  // Iterator służy jedynie do przeglądania kolejki i za jego pomocą nie można
-  // modyfikować kolejki, więc zachowuje się jak const_iterator z biblioteki
-  // standardowej.
   class k_iterator {
    private:
     using keys_iterator_t = items_by_key_t::iterator;
@@ -286,7 +251,6 @@ class kvfifo_simple {
     explicit k_iterator(keys_iterator_t iterator_) : keys_iterator(iterator_) {}
     k_iterator() = default;
     k_iterator(const k_iterator &that) : keys_iterator(that.keys_iterator) {}
-    // TODO: i'm not sure i fully understand how iterators work
     using iterator_category = std::bidirectional_iterator_tag;
     using difference_type = std::ptrdiff_t;
     using value_type = K;
@@ -332,10 +296,9 @@ template <typename K, typename V>
 class kvfifo {
  private:
   std::shared_ptr<kvfifo_simple<K, V>> simple;
+  using k_iterator = kvfifo_simple<K, V>::k_iterator;
 
  public:
-  // Konstruktory: bezparametrowy tworzący pustą kolejkę, kopiujący i
-  // przenoszący. Złożoność O(1).
   kvfifo() noexcept : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
   kvfifo(kvfifo const &that) noexcept
       : simple(that.simple->has_external_refs() ? that.simple->copy()
@@ -344,8 +307,6 @@ class kvfifo {
     that.simple = std::make_shared<kvfifo_simple<K, V>>();
   }
 
-  // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
-  // plus czas niszczenia nadpisywanego obiektu.
   kvfifo &operator=(kvfifo that) noexcept {
     simple =
         that.simple->has_external_refs() ? that.simple->copy() : that.simple;
@@ -422,12 +383,10 @@ class kvfifo {
     simple = simple_2;
   }
 
-  // NOTE: I think this is fine, because the iterator type is not defined in
-  //       any way in the excercise, so we can define it as we please
-  kvfifo_simple<K, V>::k_iterator k_begin() const noexcept {
+  k_iterator k_begin() const noexcept {
     return simple->k_begin();
   }
-  kvfifo_simple<K, V>::k_iterator k_end() const noexcept {
+  k_iterator k_end() const noexcept {
     return simple->k_end();
   }
 };
