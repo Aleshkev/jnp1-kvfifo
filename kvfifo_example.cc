@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "kwasow.h"
+#include "kvfifo_test.h"
 
 auto f(kvfifo<int, int> q) {
   return q;
@@ -75,5 +76,6 @@ int main() {
   // std::cout << "kvf5 = " << kvf5 << std::endl;
   // std::cout << "kvf6 = " << kvf6 << std::endl;
 
+  mkostyk::mkostyk_kvfifo_test_main();
   kwasow::kwasowMain();
 }
