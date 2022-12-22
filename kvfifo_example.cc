@@ -6,11 +6,21 @@
 #include "kwasow.h"
 #include "kvfifo_test.h"
 
+#define TEST_ALLOC_FAIL false
+
+#if TEST_ALLOC_FAIL
+#include "alloc_fail.h"
+#endif
+
 auto f(kvfifo<int, int> q) {
   return q;
 }
 
 int main() {
+
+#if TEST_ALLOC_FAIL
+  mkostyk::mkostyk_alloc_fail_main();
+#else
   int keys[] = {3, 1, 2};
 
   kvfifo<int, int> kvf1 = f({});
@@ -78,4 +88,5 @@ int main() {
 
   mkostyk::mkostyk_kvfifo_test_main();
   kwasow::kwasowMain();
+#endif
 }
