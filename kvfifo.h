@@ -332,25 +332,7 @@ class kvfifo_simple {
   k_iterator k_end() const noexcept {
     return k_iterator(items_by_key->end());
   }
-
-  // TODO: remove when done debugging
-  // std::ostream &print(std::ostream &o) const {
-  //   o << "[";
-  //   bool first = true;
-  //   for (auto entry : *items) {
-  //     if (!first) o << ",  ";
-  //     first = false;
-  //     o << entry.key << ": " << entry.value;
-  //   }
-  //   return o << "]";
-  // }
 };
-
-// TODO: remove when done debugging
-// template <typename K, typename V>
-// std::ostream &operator<<(std::ostream &o, const kvfifo<K, V> &q) {
-//   return q.print(o);
-// }
 
 template <typename K, typename V>
 class kvfifo {
@@ -453,7 +435,8 @@ class kvfifo {
     simple = simple_2;
   }
 
-  // TODO: This probably can't be defined like this
+  // NOTE: I think this is fine, because the iterator type is not defined in
+  //       any way in the excercise, so we can define it as we please
   kvfifo_simple<K, V>::k_iterator k_begin() const noexcept {
     return simple->k_begin();
   }
