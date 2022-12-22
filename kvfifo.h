@@ -67,13 +67,6 @@ class kvfifo_simple {
   kvfifo_simple() noexcept
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()) {}
-  kvfifo_simple(kvfifo_simple &&that)
-      : items(std::move(that.items)),
-        items_by_key(std::move(that.items_by_key)) {}
-  kvfifo_simple(std::shared_ptr<items_t> new_items,
-                std::shared_ptr<items_by_key_t> new_items_by_key)
-      : items(std::move(new_items)),
-        items_by_key(std::move(new_items_by_key)) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
@@ -87,13 +80,18 @@ class kvfifo_simple {
   bool has_external_refs() const noexcept { return external_ref_exists; }
 
   std::shared_ptr<kvfifo_simple> copy() const {
+    auto copy = std::make_shared<kvfifo_simple<K, V>>();
+
     auto new_items = std::make_shared<items_t>(*items);
     auto new_items_by_key = std::make_shared<items_by_key_t>();
     for (auto walk = new_items->begin(); walk != new_items->end(); ++walk) {
       (*new_items_by_key)[walk->key].push_back(walk);
     }
 
-    return std::make_shared<kvfifo_simple>(new_items, new_items_by_key);
+    copy->items = new_items;
+    copy->items_by_key = new_items_by_key;
+
+    return copy;
   }
 
   // Metoda push wstawia wartość v na koniec kolejki, nadając jej klucz k.
@@ -342,7 +340,9 @@ class kvfifo {
   kvfifo(kvfifo const &that) noexcept
       : simple(that.simple->has_external_refs() ? that.simple->copy()
                                                 : that.simple) {}
-  kvfifo(kvfifo &&that) noexcept : simple(std::move(that.simple)) {}
+  kvfifo(kvfifo &&that) noexcept : simple(that.simple) {
+    that.simple = std::make_shared<kvfifo_simple<K, V>>();
+  }
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
