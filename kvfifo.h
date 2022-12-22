@@ -326,8 +326,12 @@ class kvfifo_simple {
   };
 
   static_assert(std::bidirectional_iterator<k_iterator>);
-  k_iterator k_begin() noexcept { return k_iterator(items_by_key->begin()); }
-  k_iterator k_end() noexcept { return k_iterator(items_by_key->end()); }
+  k_iterator k_begin() const noexcept {
+    return k_iterator(items_by_key->begin());
+  }
+  k_iterator k_end() const noexcept {
+    return k_iterator(items_by_key->end());
+  }
 
   // TODO: remove when done debugging
   // std::ostream &print(std::ostream &o) const {
@@ -450,8 +454,12 @@ class kvfifo {
   }
 
   // TODO: This probably can't be defined like this
-  kvfifo_simple<K, V>::k_iterator k_begin() noexcept { return simple->k_begin(); }
-  kvfifo_simple<K, V>::k_iterator k_end() noexcept { return simple->k_end(); }
+  kvfifo_simple<K, V>::k_iterator k_begin() const noexcept {
+    return simple->k_begin();
+  }
+  kvfifo_simple<K, V>::k_iterator k_end() const noexcept {
+    return simple->k_end();
+  }
 };
 
 #endif
