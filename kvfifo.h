@@ -73,7 +73,7 @@ class kvfifo_simple {
   kvfifo_simple(
     std::shared_ptr<items_t> new_items,
     std::shared_ptr<items_by_key_t> new_items_by_key
-  ) : items(new_items), items_by_key(new_items_by_key) {}
+  ) : items(std::move(new_items)), items_by_key(std::move(new_items_by_key)) {}
 
   // Operator przypisania przyjmujący argument przez wartość. Złożoność O(1)
   // plus czas niszczenia nadpisywanego obiektu.
