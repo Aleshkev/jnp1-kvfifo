@@ -302,9 +302,8 @@ class kvfifo {
   kvfifo(kvfifo const &that) noexcept
       : simple(that.simple->has_external_refs() ? that.simple->copy()
                                                 : that.simple) {}
-  // TODO: Check if this is really noexcept
   kvfifo(kvfifo &&that) noexcept : simple(that.simple) {
-    that.simple = std::make_shared<kvfifo_simple<K, V>>();
+    that.simple = nullptr;
   }
 
   kvfifo &operator=(kvfifo that) noexcept {
