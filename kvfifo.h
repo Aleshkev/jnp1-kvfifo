@@ -118,12 +118,12 @@ class kvfifo_simple {
 
   void pop(K const &k) {
     auto &items_at_key = items_by_key->at(k);
-    const auto &node = items_at_key.front();
+    const auto node = items_at_key.front();
     items_at_key.pop_front();
     if (items_at_key.empty()) items_by_key->erase(k);
     items->erase(node);
 
-    // Bo modyfikacja unieważnia.
+    // // Bo modyfikacja unieważnia.
     external_ref_exists = false;
   }
 
