@@ -265,11 +265,9 @@ class kvfifo {
   shared_simple simple;
 
   shared_simple get_safe_simple() {
-    return simple == nullptr
-      ? std::make_shared<kvfifo_simple<K, V>>()
-      : simple.unique()
-        ? simple
-        : simple->copy();
+    return simple == nullptr ? std::make_shared<kvfifo_simple<K, V>>()
+           : simple.unique() ? simple
+                             : simple->copy();
   }
 
   // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
@@ -286,22 +284,17 @@ class kvfifo {
  public:
   kvfifo() : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
   kvfifo(kvfifo const &that)
-      : simple(that.simple == nullptr
-                ? nullptr
-                : that.simple->has_external_refs()
-                  ? that.simple->copy()
-                  : that.simple) {}
+      : simple(that.simple == nullptr             ? nullptr
+               : that.simple->has_external_refs() ? that.simple->copy()
+                                                  : that.simple) {}
   kvfifo(kvfifo &&that) noexcept : simple(that.simple) {
     that.simple = nullptr;
   }
 
   kvfifo &operator=(kvfifo that) noexcept {
-    simple =
-      that.simple == nullptr
-        ? nullptr
-        : that.simple->has_external_refs()
-          ? that.simple->copy()
-          : that.simple;
+    simple = that.simple == nullptr             ? nullptr
+             : that.simple->has_external_refs() ? that.simple->copy()
+                                                : that.simple;
 
     return (*this);
   }
@@ -376,7 +369,7 @@ class kvfifo {
     assert_nonempty();
 
     // Dalej bez wyjątków.
-    
+
     return simple->back();
   }
   std::pair<K const &, V &> first(K const &k) {
@@ -430,7 +423,7 @@ class kvfifo {
     auto simple_2 = get_safe_simple();
 
     // Dalej bez wyjątków.
-    
+
     simple_2->clear();
     simple = simple_2;
   }
