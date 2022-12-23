@@ -2,14 +2,10 @@
 #define KVFIFO_H
 
 #include <cstddef>
-#include <iostream>
 #include <iterator>
 #include <list>
 #include <map>
 #include <memory>
-#include <set>
-#include <utility>
-#include <vector>
 
 template <typename K, typename V>
 class kvfifo_simple {
@@ -70,6 +66,8 @@ class kvfifo_simple {
     for (auto walk = new_items->begin(); walk != new_items->end(); ++walk) {
       (*new_items_by_key)[walk->key].push_back(walk);
     }
+
+    // Dalej bez wyjątków.
 
     copy->items = new_items;
     copy->items_by_key = new_items_by_key;
