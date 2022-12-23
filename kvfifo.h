@@ -294,99 +294,138 @@ class kvfifo_simple {
 template <typename K, typename V>
 class kvfifo {
  private:
-  std::shared_ptr<kvfifo_simple<K, V>> simple;
+  using shared_simple = std::shared_ptr<kvfifo_simple<K, V>>;
   using k_iterator = kvfifo_simple<K, V>::k_iterator;
+  shared_simple simple;
+
+  shared_simple get_safe_simple() {
+    return simple == nullptr
+      ? std::make_shared<kvfifo_simple<K, V>>()
+      : simple.unique()
+        ? simple
+        : simple->copy();
+  }
+
+  void assert_simple_not_null(std::string error) const {
+    if (simple == nullptr)
+      throw std::invalid_argument(error);
+  }
 
  public:
-  kvfifo() noexcept : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
-  kvfifo(kvfifo const &that) noexcept
-      : simple(that.simple->has_external_refs() ? that.simple->copy()
-                                                : that.simple) {}
+  kvfifo() : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
+  kvfifo(kvfifo const &that)
+      : simple(that.simple == nullptr
+                ? nullptr
+                : that.simple->has_external_refs()
+                  ? that.simple->copy()
+                  : that.simple) {}
   kvfifo(kvfifo &&that) noexcept : simple(that.simple) {
     that.simple = nullptr;
   }
 
   kvfifo &operator=(kvfifo that) noexcept {
     simple =
-        that.simple->has_external_refs() ? that.simple->copy() : that.simple;
+      that.simple == nullptr
+        ? nullptr
+        : that.simple->has_external_refs()
+          ? that.simple->copy()
+          : that.simple;
 
     return (*this);
   }
 
   void push(K const &k, V const &v) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple_2->push(k, v);
     simple = simple_2;
   }
 
   void pop() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple_2->pop();
     simple = simple_2;
   }
 
   void pop(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple_2->pop(k);
     simple = simple_2;
   }
 
   void move_to_back(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple_2->move_to_back(k);
     simple = simple_2;
   }
 
   std::pair<K const &, V &> front() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->front();
   }
-  std::pair<K const &, V const &> front() const { return simple->front(); }
+  std::pair<K const &, V const &> front() const {
+    assert_simple_not_null("empty");
+
+    return simple->front();
+  }
   std::pair<K const &, V &> back() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->back();
   }
-  std::pair<K const &, V const &> back() const { return simple->back(); }
+  std::pair<K const &, V const &> back() const {
+    assert_simple_not_null("empty");
+    
+    return simple->back();
+  }
   std::pair<K const &, V &> first(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->first(k);
   }
   std::pair<K const &, V const &> first(K const &k) const {
+    assert_simple_not_null("key missing");
+
     return simple->first(k);
   }
   std::pair<K const &, V &> last(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->last(k);
   }
   std::pair<K const &, V const &> last(K const &k) const {
+    assert_simple_not_null("key missing");
+
     return simple->last(k);
   }
 
-  size_t size() const noexcept { return simple->size(); }
+  size_t size() const noexcept {
+    return simple == nullptr ? 0 : simple->size();
+  }
 
-  bool empty() const noexcept { return simple->empty(); }
+  bool empty() const noexcept {
+    return simple == nullptr ? true : simple->empty();
+  }
 
-  size_t count(K const &k) const noexcept { return simple->count(k); }
+  size_t count(K const &k) const noexcept {
+    return simple == nullptr ? 0 : simple->count(k);
+  }
 
   void clear() noexcept {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
     simple_2->clear();
     simple = simple_2;
   }
 
   k_iterator k_begin() const noexcept {
-    return simple->k_begin();
+    return simple == nullptr ? k_iterator() : simple->k_begin();
   }
   k_iterator k_end() const noexcept {
-    return simple->k_end();
+    return simple == nullptr ? k_iterator() : simple->k_end();
   }
 };
 
