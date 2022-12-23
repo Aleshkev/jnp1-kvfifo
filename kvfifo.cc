@@ -3,12 +3,7 @@
 template <typename K, typename V>
 K kvfifo_simple<K, V>::assert_key_exists(const K &k) const {
   if (count(k) == 0) throw std::invalid_argument("key missing");
-    return k;
-}
-
-template <typename K, typename V>
-void kvfifo_simple<K, V>::assert_nonempty() const {
-  if (empty()) throw std::invalid_argument("empty");
+  return k;
 }
 
 template <typename K, typename V>
@@ -17,11 +12,6 @@ kvfifo_simple<K, V> &kvfifo_simple<K, V>::operator=(kvfifo_simple that) {
   auto new_items_by_key = that.items_by_key;
 
   return (*this);
-}
-
-template <typename K, typename V>
-bool kvfifo_simple<K, V>::has_external_refs() const noexcept {
-  return external_ref_exists;
 }
 
 template <typename K, typename V>
@@ -190,16 +180,6 @@ std::pair<K const &, V const &> kvfifo_simple<K, V>::last(K const &k) const {
 }
 
 template <typename K, typename V>
-size_t kvfifo_simple<K, V>::size() const noexcept {
-  return items->size();
-}
-
-template <typename K, typename V>
-bool kvfifo_simple<K, V>::empty() const noexcept {
-  return items->empty();
-}
-
-template <typename K, typename V>
 size_t kvfifo_simple<K, V>::count(K const &k) const noexcept {
   // Bez wyjątków.
   auto it = items_by_key->find(k);
@@ -216,16 +196,6 @@ void kvfifo_simple<K, V>::clear() noexcept {
   // Bez wyjątków.
   items->clear();
   items_by_key->clear();
-}
-
-template <typename K, typename V>
-kvfifo_simple<K, V>::k_iterator kvfifo_simple<K, V>::k_begin() const noexcept {
-  return k_iterator(items_by_key->begin());
-}
-
-template <typename K, typename V>
-kvfifo_simple<K, V>::k_iterator kvfifo_simple<K, V>::k_end() const noexcept {
-  return k_iterator(items_by_key->end());
 }
 
 template <typename K, typename V>
@@ -317,33 +287,8 @@ std::pair<K const &, V const &> kvfifo<K, V>::last(K const &k) const {
 }
 
 template <typename K, typename V>
-size_t kvfifo<K, V>::size() const noexcept {
-  return simple->size();
-}
-
-template <typename K, typename V>
-bool kvfifo<K, V>::empty() const noexcept {
-  return simple->empty();
-}
-
-template <typename K, typename V>
-size_t kvfifo<K, V>::count(K const &k) const noexcept {
-  return simple->count(k);
-}
-
-template <typename K, typename V>
 void kvfifo<K, V>::clear() noexcept {
   auto simple_2 = (simple.unique() ? simple : simple->copy());
   simple_2->clear();
   simple = simple_2;
-}
-
-template <typename K, typename V>
-kvfifo<K, V>::k_iterator kvfifo<K, V>::k_begin() const noexcept {
-  return simple->k_begin();
-}
-
-template <typename K, typename V>
-kvfifo<K, V>::k_iterator kvfifo<K, V>::k_end() const noexcept {
-  return simple->k_end();
 }

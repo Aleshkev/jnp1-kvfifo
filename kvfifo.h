@@ -53,7 +53,9 @@ class kvfifo_simple {
   K assert_key_exists(const K &k) const;
 
   // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
-  void assert_nonempty() const;
+  void assert_nonempty() const {
+    if (empty()) throw std::invalid_argument("empty");
+  }
 
  public:
   kvfifo_simple() noexcept
@@ -62,7 +64,9 @@ class kvfifo_simple {
 
   kvfifo_simple &operator=(kvfifo_simple that);
 
-  bool has_external_refs() const noexcept;
+  bool has_external_refs() const noexcept {
+    return external_ref_exists;
+  }
 
   // Tworzy kopię obiektu.
   std::shared_ptr<kvfifo_simple> copy() const;
@@ -87,9 +91,13 @@ class kvfifo_simple {
   std::pair<K const &, V &> last(K const &k);
   std::pair<K const &, V const &> last(K const &k) const;
 
-  size_t size() const noexcept;
+  size_t size() const noexcept {
+    return items->size();
+  }
 
-  bool empty() const noexcept;
+  bool empty() const noexcept {
+    return items->empty();
+  }
 
   size_t count(K const &k) const noexcept;
 
@@ -139,8 +147,12 @@ class kvfifo_simple {
   };
   static_assert(std::bidirectional_iterator<k_iterator>);
 
-  k_iterator k_begin() const noexcept;
-  k_iterator k_end() const noexcept;
+  k_iterator k_begin() const noexcept {
+    return k_iterator(items_by_key->begin());
+  }
+  k_iterator k_end() const noexcept {
+    return k_iterator(items_by_key->end());
+  }
 };
 
 template <typename K, typename V>
@@ -181,16 +193,26 @@ class kvfifo {
   std::pair<K const &, V &> last(K const &k);
   std::pair<K const &, V const &> last(K const &k) const;
 
-  size_t size() const noexcept;
+  size_t size() const noexcept {
+    return simple->size();
+  }
 
-  bool empty() const noexcept;
+  bool empty() const noexcept {
+    return simple->empty();
+  }
 
-  size_t count(K const &k) const noexcept;
+  size_t count(K const &k) const noexcept {
+    return simple->count();
+  }
 
   void clear() noexcept;
 
-  k_iterator k_begin() const noexcept;
-  k_iterator k_end() const noexcept;
+  k_iterator k_begin() const noexcept {
+    return simple->k_begin();
+  }
+  k_iterator k_end() const noexcept {
+    return simple->k_end();
+  }
 };
 
 #endif
