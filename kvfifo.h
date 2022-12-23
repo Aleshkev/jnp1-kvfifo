@@ -219,6 +219,12 @@ class kvfifo_simple {
 
     const K &operator*() const { return keys_iterator->first; }
 
+    k_iterator &operator=(k_iterator that) {
+      keys_iterator = that.keys_iterator;
+
+      return *this;
+    }
+
     k_iterator &operator++() {
       ++keys_iterator;
       return *this;
