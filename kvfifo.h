@@ -48,24 +48,12 @@ class kvfifo_simple {
   // aktualna non-const referencja.
   bool external_ref_exists = false;
 
-  // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
-  // kluczem. W szczególności też jeśli nie ma żadnych elementów.
-  K assert_key_exists(const K &k) const {
-    if (count(k) == 0) throw std::invalid_argument("key missing");
-    return k;
-  }
-
-  // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
-  void assert_nonempty() const {
-    if (empty()) throw std::invalid_argument("empty");
-  }
-
  public:
-  kvfifo_simple() noexcept
+  kvfifo_simple()
       : items(std::make_shared<items_t>()),
         items_by_key(std::make_shared<items_by_key_t>()) {}
 
-  kvfifo_simple &operator=(kvfifo_simple that) {
+  kvfifo_simple &operator=(kvfifo_simple that) noexcept {
     auto new_items = that.item;
     auto new_items_by_key = that.items_by_key;
 
@@ -118,10 +106,6 @@ class kvfifo_simple {
   }
 
   void pop() {
-    assert_nonempty();
-
-    // Dalej bez wyjątków.
-
     auto [key, value] = items->front();
     items->pop_front();
     auto &items_at_key = items_by_key->at(key);
@@ -133,23 +117,17 @@ class kvfifo_simple {
   }
 
   void pop(K const &k) {
-    assert_key_exists(k);
-
-    // Dalej bez wyjątków.
-
     auto &items_at_key = items_by_key->at(k);
-    const auto &node = items_at_key.front();
+    const auto node = items_at_key.front();
     items_at_key.pop_front();
     if (items_at_key.empty()) items_by_key->erase(k);
     items->erase(node);
 
-    // Bo modyfikacja unieważnia.
+    // // Bo modyfikacja unieważnia.
     external_ref_exists = false;
   }
 
   void move_to_back(K const &k) {
-    assert_key_exists(k);
-
     // Trzeba zamienić wszystkie elementy z kluczem k: usunąć wszystkie z items,
     // i dodać nowe na koniec. Przez to trzeba zamienić referencje w
     // items_by_key (zmienią się wszystkie).
@@ -175,48 +153,32 @@ class kvfifo_simple {
   }
 
   std::pair<K const &, V &> front() {
-    assert_nonempty();
-
     external_ref_exists = true;
     return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
-    assert_nonempty();
-
     return items->front().as_pair();
   }
   std::pair<K const &, V &> back() {
-    assert_nonempty();
-
     external_ref_exists = true;
     return items->back().as_pair();
   }
   std::pair<K const &, V const &> back() const {
-    assert_nonempty();
-
     return items->back().as_pair();
   }
 
   std::pair<K const &, V &> first(K const &k) {
-    assert_key_exists(k);
-
     external_ref_exists = true;
     return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
-    assert_key_exists(k);
-
     return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
-    assert_key_exists(k);
-
     external_ref_exists = true;
     return items_by_key->at(k).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
-    assert_key_exists(k);
-
     return items_by_key->at(k).back()->as_pair();
   }
 
@@ -257,6 +219,12 @@ class kvfifo_simple {
 
     const K &operator*() const { return keys_iterator->first; }
 
+    k_iterator &operator=(k_iterator that) {
+      keys_iterator = that.keys_iterator;
+
+      return *this;
+    }
+
     k_iterator &operator++() {
       ++keys_iterator;
       return *this;
@@ -294,99 +262,186 @@ class kvfifo_simple {
 template <typename K, typename V>
 class kvfifo {
  private:
-  std::shared_ptr<kvfifo_simple<K, V>> simple;
+  using shared_simple = std::shared_ptr<kvfifo_simple<K, V>>;
   using k_iterator = kvfifo_simple<K, V>::k_iterator;
+  shared_simple simple;
+
+  shared_simple get_safe_simple() {
+    return simple == nullptr
+      ? std::make_shared<kvfifo_simple<K, V>>()
+      : simple.unique()
+        ? simple
+        : simple->copy();
+  }
+
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
+  // kluczem. W szczególności też jeśli nie ma żadnych elementów.
+  void assert_key_exists(const K &k) const {
+    if (count(k) == 0) throw std::invalid_argument("key missing");
+  }
+
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
+  void assert_nonempty() const {
+    if (empty()) throw std::invalid_argument("empty");
+  }
 
  public:
-  kvfifo() noexcept : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
-  kvfifo(kvfifo const &that) noexcept
-      : simple(that.simple->has_external_refs() ? that.simple->copy()
-                                                : that.simple) {}
+  kvfifo() : simple(std::make_shared<kvfifo_simple<K, V>>()) {}
+  kvfifo(kvfifo const &that)
+      : simple(that.simple == nullptr
+                ? nullptr
+                : that.simple->has_external_refs()
+                  ? that.simple->copy()
+                  : that.simple) {}
   kvfifo(kvfifo &&that) noexcept : simple(that.simple) {
     that.simple = nullptr;
   }
 
   kvfifo &operator=(kvfifo that) noexcept {
     simple =
-        that.simple->has_external_refs() ? that.simple->copy() : that.simple;
+      that.simple == nullptr
+        ? nullptr
+        : that.simple->has_external_refs()
+          ? that.simple->copy()
+          : that.simple;
 
     return (*this);
   }
 
   void push(K const &k, V const &v) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple_2->push(k, v);
     simple = simple_2;
   }
 
   void pop() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_nonempty();
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple_2->pop();
     simple = simple_2;
   }
 
   void pop(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_key_exists(k);
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple_2->pop(k);
     simple = simple_2;
   }
 
   void move_to_back(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_key_exists(k);
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple_2->move_to_back(k);
     simple = simple_2;
   }
 
   std::pair<K const &, V &> front() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_nonempty();
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple = simple_2;
 
     return simple_2->front();
   }
-  std::pair<K const &, V const &> front() const { return simple->front(); }
+  std::pair<K const &, V const &> front() const {
+    assert_nonempty();
+
+    // Dalej bez wyjątków.
+
+    return simple->front();
+  }
   std::pair<K const &, V &> back() {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_nonempty();
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple = simple_2;
 
     return simple_2->back();
   }
-  std::pair<K const &, V const &> back() const { return simple->back(); }
+  std::pair<K const &, V const &> back() const {
+    assert_nonempty();
+
+    // Dalej bez wyjątków.
+    
+    return simple->back();
+  }
   std::pair<K const &, V &> first(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_key_exists(k);
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple = simple_2;
 
     return simple_2->first(k);
   }
   std::pair<K const &, V const &> first(K const &k) const {
+    assert_key_exists(k);
+
+    // Dalej bez wyjątków.
+
     return simple->first(k);
   }
   std::pair<K const &, V &> last(K const &k) {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+    assert_key_exists(k);
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+
     simple = simple_2;
 
     return simple_2->last(k);
   }
   std::pair<K const &, V const &> last(K const &k) const {
+    assert_key_exists(k);
+
+    // Dalej bez wyjątków.
+
     return simple->last(k);
   }
 
-  size_t size() const noexcept { return simple->size(); }
+  size_t size() const noexcept {
+    return simple == nullptr ? 0 : simple->size();
+  }
 
-  bool empty() const noexcept { return simple->empty(); }
+  bool empty() const noexcept {
+    return simple == nullptr ? true : simple->empty();
+  }
 
-  size_t count(K const &k) const noexcept { return simple->count(k); }
+  size_t count(K const &k) const noexcept {
+    return simple == nullptr ? 0 : simple->count(k);
+  }
 
-  void clear() noexcept {
-    auto simple_2 = (simple.unique() ? simple : simple->copy());
+  void clear() {
+    auto simple_2 = get_safe_simple();
+
+    // Dalej bez wyjątków.
+    
     simple_2->clear();
     simple = simple_2;
   }
 
   k_iterator k_begin() const noexcept {
-    return simple->k_begin();
+    return simple == nullptr ? k_iterator() : simple->k_begin();
   }
   k_iterator k_end() const noexcept {
-    return simple->k_end();
+    return simple == nullptr ? k_iterator() : simple->k_end();
   }
 };
 
