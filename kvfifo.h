@@ -202,7 +202,7 @@ class kvfifo {
   }
 
   size_t count(K const &k) const noexcept {
-    return simple->count();
+    return simple->count(k);
   }
 
   void clear() noexcept;
