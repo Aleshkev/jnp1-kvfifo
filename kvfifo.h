@@ -48,18 +48,6 @@ class kvfifo_simple {
   // aktualna non-const referencja.
   bool external_ref_exists = false;
 
-  // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
-  // kluczem. W szczególności też jeśli nie ma żadnych elementów.
-  K assert_key_exists(const K &k) const {
-    if (count(k) == 0) throw std::invalid_argument("key missing");
-    return k;
-  }
-
-  // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
-  void assert_nonempty() const {
-    if (empty()) throw std::invalid_argument("empty");
-  }
-
  public:
   kvfifo_simple() noexcept
       : items(std::make_shared<items_t>()),
@@ -118,8 +106,6 @@ class kvfifo_simple {
   }
 
   void pop() {
-    assert_nonempty();
-
     // Dalej bez wyjątków.
 
     auto [key, value] = items->front();
@@ -133,8 +119,6 @@ class kvfifo_simple {
   }
 
   void pop(K const &k) {
-    assert_key_exists(k);
-
     // Dalej bez wyjątków.
 
     auto &items_at_key = items_by_key->at(k);
@@ -148,8 +132,6 @@ class kvfifo_simple {
   }
 
   void move_to_back(K const &k) {
-    assert_key_exists(k);
-
     // Trzeba zamienić wszystkie elementy z kluczem k: usunąć wszystkie z items,
     // i dodać nowe na koniec. Przez to trzeba zamienić referencje w
     // items_by_key (zmienią się wszystkie).
@@ -175,48 +157,32 @@ class kvfifo_simple {
   }
 
   std::pair<K const &, V &> front() {
-    assert_nonempty();
-
     external_ref_exists = true;
     return items->front().as_pair();
   }
   std::pair<K const &, V const &> front() const {
-    assert_nonempty();
-
     return items->front().as_pair();
   }
   std::pair<K const &, V &> back() {
-    assert_nonempty();
-
     external_ref_exists = true;
     return items->back().as_pair();
   }
   std::pair<K const &, V const &> back() const {
-    assert_nonempty();
-
     return items->back().as_pair();
   }
 
   std::pair<K const &, V &> first(K const &k) {
-    assert_key_exists(k);
-
     external_ref_exists = true;
     return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V const &> first(K const &k) const {
-    assert_key_exists(k);
-
     return items_by_key->at(k).front()->as_pair();
   }
   std::pair<K const &, V &> last(K const &k) {
-    assert_key_exists(k);
-
     external_ref_exists = true;
     return items_by_key->at(k).back()->as_pair();
   }
   std::pair<K const &, V const &> last(K const &k) const {
-    assert_key_exists(k);
-
     return items_by_key->at(k).back()->as_pair();
   }
 
@@ -306,9 +272,15 @@ class kvfifo {
         : simple->copy();
   }
 
-  void assert_simple_not_null(std::string error) const {
-    if (simple == nullptr)
-      throw std::invalid_argument(error);
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnego elementu z danym
+  // kluczem. W szczególności też jeśli nie ma żadnych elementów.
+  void assert_key_exists(const K &k) const {
+    if (count(k) == 0) throw std::invalid_argument("key missing");
+  }
+
+  // Wyrzuca std::invalid_argument jeśli nie ma żadnych elementów.
+  void assert_nonempty() const {
+    if (empty()) throw std::invalid_argument("empty");
   }
 
  public:
@@ -341,64 +313,78 @@ class kvfifo {
   }
 
   void pop() {
+    assert_nonempty();
+
     auto simple_2 = get_safe_simple();
     simple_2->pop();
     simple = simple_2;
   }
 
   void pop(K const &k) {
+    assert_key_exists(k);
+
     auto simple_2 = get_safe_simple();
     simple_2->pop(k);
     simple = simple_2;
   }
 
   void move_to_back(K const &k) {
+    assert_key_exists(k);
+
     auto simple_2 = get_safe_simple();
     simple_2->move_to_back(k);
     simple = simple_2;
   }
 
   std::pair<K const &, V &> front() {
+    assert_nonempty();
+
     auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->front();
   }
   std::pair<K const &, V const &> front() const {
-    assert_simple_not_null("empty");
+    assert_nonempty();
 
     return simple->front();
   }
   std::pair<K const &, V &> back() {
+    assert_nonempty();
+
     auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->back();
   }
   std::pair<K const &, V const &> back() const {
-    assert_simple_not_null("empty");
+    assert_nonempty();
     
     return simple->back();
   }
   std::pair<K const &, V &> first(K const &k) {
+    assert_key_exists(k);
+
     auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->first(k);
   }
   std::pair<K const &, V const &> first(K const &k) const {
-    assert_simple_not_null("key missing");
+    assert_key_exists(k);
 
     return simple->first(k);
   }
   std::pair<K const &, V &> last(K const &k) {
+    assert_key_exists(k);
+
     auto simple_2 = get_safe_simple();
     simple = simple_2;
 
     return simple_2->last(k);
   }
   std::pair<K const &, V const &> last(K const &k) const {
-    assert_simple_not_null("key missing");
+    assert_key_exists(k);
 
     return simple->last(k);
   }
